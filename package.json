@@ -1,0 +1,16 @@
+{
+  "name": "streamsync",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:shared": "tsc -p packages/shared/tsconfig.json",
+    "build:signaling": "tsc -p apps/signaling/tsconfig.json",
+    "dev:signaling": "node --enable-source-maps apps/signaling/dist/server.js",
+    "typecheck": "tsc -b -v"
+  }
+}
+
+

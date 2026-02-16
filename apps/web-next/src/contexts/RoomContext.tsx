@@ -1,0 +1,514 @@
+"use client";
+
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import { Participant } from "@/types";
+import { WS_PROTOCOL_VERSION, ClientInfo, C2S, S2C, PlaybackState } from "@streamsync/shared";
+
+interface ChatMessage {
+    id: string;
+    sender: string;
+    text: string;
+    timestamp: string;
+    isSystem: boolean;
+}
+
+interface RoomContextType {
+    participants: Participant[];
+    localUser: Participant | null;
+    activeStreamUrl: string;
+    isScreenSharing: boolean;
+    screenStream: MediaStream | null;
+    localStream: MediaStream | null;
+    playbackState: "playing" | "paused";
+    currentTime: number;
+    messages: ChatMessage[];
+    joinRoom: (name: string, roomId: string) => void;
+    leaveRoom: () => void;
+    setStreamUrl: (url: string) => void;
+    toggleScreenShare: () => Promise<void>;
+    toggleMute: () => void;
+    toggleVideo: () => void;
+    setPlayback: (state: "playing" | "paused", time: number) => void;
+    sendMessage: (text: string) => void;
+    mediaError: string | null;
+}
+
+const RoomContext = createContext<RoomContextType | null>(null);
+
+export function useRoom() {
+    const context = useContext(RoomContext);
+    if (!context) {
+        throw new Error("useRoom must be used within a RoomProvider");
+    }
+    return context;
+}
+
+interface RoomProviderProps {
+    children: React.ReactNode;
+}
+
+const ICE_SERVERS = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+    ],
+};
+
+export function RoomProvider({ children }: RoomProviderProps) {
+    const [participants, setParticipants] = useState<Participant[]>([]);
+    const [localUser, setLocalUser] = useState<Participant | null>(null);
+    const [activeStreamUrl, setActiveStreamUrl] = useState("");
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const [playbackState, setPlaybackState] = useState<"playing" | "paused">("paused");
+    const [currentTime, setCurrentTime] = useState(0);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [mediaError, setMediaError] = useState<string | null>(null);
+
+    // WebSocket and WebRTC Refs
+    const wsRef = useRef<WebSocket | null>(null);
+    const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+    const currentRoomId = useRef<string | null>(null);
+    const localUserRef = useRef<Participant | null>(null); // To access current state in event handlers
+    const localStreamRef = useRef<MediaStream | null>(null);
+
+    // Keep localUserRef in sync
+    useEffect(() => {
+        localUserRef.current = localUser;
+    }, [localUser]);
+
+    // Keep localStreamRef in sync
+    useEffect(() => {
+        localStreamRef.current = localStream;
+    }, [localStream]);
+
+    // WebSocket Message Handling
+    useEffect(() => {
+        const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080");
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+            console.log("Connected to signaling server");
+        };
+
+        ws.onmessage = async (event) => {
+            const msg = JSON.parse(event.data) as S2C;
+
+            switch (msg.type) {
+                case "server/hello":
+                    console.log("Server hello, nowMs:", msg.payload.nowMs);
+                    break;
+                case "room/joined":
+                    handleRoomJoined(msg.payload);
+                    break;
+                case "room/peer_joined":
+                    handlePeerJoined(msg.payload);
+                    break;
+                case "room/peer_left":
+                    handlePeerLeft(msg.payload);
+                    break;
+                case "webrtc/offer":
+                    handleWebrtcOffer(msg.payload);
+                    break;
+                case "webrtc/answer":
+                    handleWebrtcAnswer(msg.payload);
+                    break;
+                case "webrtc/ice":
+                    handleWebrtcIce(msg.payload);
+                    break;
+                case "chat/message":
+                    handleChatMessage(msg.payload);
+                    break;
+                case "watch/content":
+                    setActiveStreamUrl(msg.payload.contentId);
+                    break;
+                case "watch/playback_state":
+                    setPlaybackState(msg.payload.state.playing ? "playing" : "paused");
+                    setCurrentTime(msg.payload.state.positionSec);
+                    break;
+            }
+        };
+
+        return () => {
+            ws.close();
+            // Cleanup PCs
+            pcsRef.current.forEach(pc => pc.close());
+            pcsRef.current.clear();
+        };
+    }, []);
+
+    const sendWs = useCallback((msg: C2S) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify(msg));
+        }
+    }, []);
+
+    const createPeerConnection = (targetUserId: string) => {
+        const pc = new RTCPeerConnection(ICE_SERVERS);
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate && currentRoomId.current) {
+                sendWs({
+                    v: WS_PROTOCOL_VERSION,
+                    type: "webrtc/ice",
+                    payload: {
+                        roomId: currentRoomId.current,
+                        toUserId: targetUserId,
+                        candidate: event.candidate.toJSON(),
+                    },
+                });
+            }
+        };
+
+        pc.ontrack = (event) => {
+            console.log("Received remote track from", targetUserId);
+            const stream = event.streams[0];
+            setParticipants(prev => prev.map(p => {
+                if (p.id === targetUserId) {
+                    return { ...p, stream };
+                }
+                return p;
+            }));
+        };
+
+        // Add local tracks if available
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => {
+                pc.addTrack(track, localStreamRef.current!);
+            });
+        }
+
+        pcsRef.current.set(targetUserId, pc);
+        return pc;
+    };
+
+    const handleRoomJoined = (payload: { roomId: string; you: ClientInfo; peers: ClientInfo[] }) => {
+        const you: Participant = {
+            id: payload.you.userId,
+            name: payload.you.displayName,
+            isLocal: true,
+            hasAudio: true,
+            hasVideo: true,
+            isSpeaking: false,
+            isScreenSharing: false,
+        };
+        setLocalUser(you);
+
+        const others: Participant[] = payload.peers.map(p => ({
+            id: p.userId,
+            name: p.displayName,
+            isLocal: false,
+            hasAudio: true,
+            hasVideo: true,
+            isSpeaking: false,
+            isScreenSharing: false,
+        }));
+
+        setParticipants([you, ...others]);
+    };
+
+    const handlePeerJoined = async (payload: { roomId: string; peer: ClientInfo }) => {
+        const peer: Participant = {
+            id: payload.peer.userId,
+            name: payload.peer.displayName,
+            isLocal: false,
+            hasAudio: true,
+            hasVideo: true,
+            isSpeaking: false,
+            isScreenSharing: false,
+        };
+
+        setParticipants(prev => [...prev, peer]);
+
+        // We initiate the connection to the new peer
+        const pc = createPeerConnection(peer.id);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "webrtc/offer",
+            payload: {
+                roomId: payload.roomId,
+                toUserId: peer.id,
+                sdp: offer,
+            },
+        });
+    };
+
+    const handlePeerLeft = (payload: { roomId: string; userId: string }) => {
+        setParticipants(prev => prev.filter(p => p.id !== payload.userId));
+        const pc = pcsRef.current.get(payload.userId);
+        if (pc) {
+            pc.close();
+            pcsRef.current.delete(payload.userId);
+        }
+    };
+
+    const handleWebrtcOffer = async (payload: { roomId: string; fromUserId: string; sdp: RTCSessionDescriptionInit }) => {
+        let pc = pcsRef.current.get(payload.fromUserId);
+        if (!pc) {
+            pc = createPeerConnection(payload.fromUserId);
+        }
+
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "webrtc/answer",
+            payload: {
+                roomId: payload.roomId,
+                toUserId: payload.fromUserId,
+                sdp: answer,
+            },
+        });
+    };
+
+    const handleWebrtcAnswer = async (payload: { roomId: string; fromUserId: string; sdp: RTCSessionDescriptionInit }) => {
+        const pc = pcsRef.current.get(payload.fromUserId);
+        if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        }
+    };
+
+    const handleWebrtcIce = async (payload: { roomId: string; fromUserId: string; candidate: RTCIceCandidateInit }) => {
+        const pc = pcsRef.current.get(payload.fromUserId);
+        if (pc) {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            } catch (e) {
+                console.error("Error adding ICE candidate", e);
+            }
+        }
+    };
+
+    const handleChatMessage = (payload: { from: ClientInfo; text: string; tsMs: number }) => {
+        setMessages(prev => [...prev, {
+            id: `msg_${payload.tsMs}`,
+            sender: payload.from.displayName,
+            text: payload.text,
+            timestamp: new Date(payload.tsMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            isSystem: false,
+        }]);
+    };
+
+    const joinRoom = useCallback(async (name: string, roomId: string) => {
+        currentRoomId.current = roomId;
+
+        // Get Local Stream
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true,
+            });
+            setLocalStream(stream);
+        } catch (error) {
+            console.error("Error accessing media devices:", error);
+            if (error instanceof Error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError")) {
+                setMediaError("Permission denied");
+            } else {
+                setMediaError("Error accessing camera/mic");
+            }
+        }
+
+        // Send Join Request
+        // We need to wait for localUser to be set by server response? 
+        // No, we send ClientInfo in join request.
+        // We generate a temp ID or let server assign? Server events.ts says client provides ClientInfo.
+        // So we generate ID here.
+        const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "room/join",
+            payload: {
+                roomId,
+                client: {
+                    userId,
+                    displayName: name,
+                },
+            },
+        });
+    }, [sendWs]);
+
+    const leaveRoom = useCallback(() => {
+        if (currentRoomId.current) {
+            sendWs({
+                v: WS_PROTOCOL_VERSION,
+                type: "room/leave",
+                payload: { roomId: currentRoomId.current },
+            });
+        }
+
+        // Cleanup
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            setLocalStream(null);
+        }
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
+            setScreenStream(null);
+        }
+
+        setParticipants([]);
+        setLocalUser(null);
+        currentRoomId.current = null;
+        setActiveStreamUrl("");
+
+        pcsRef.current.forEach(pc => pc.close());
+        pcsRef.current.clear();
+    }, [localStream, screenStream, sendWs]);
+
+    const setStreamUrl = useCallback((url: string) => {
+        if (!currentRoomId.current) return;
+        setActiveStreamUrl(url);
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "watch/set_content",
+            payload: {
+                roomId: currentRoomId.current,
+                contentId: url,
+            },
+        });
+    }, [sendWs]);
+
+    const toggleScreenShare = useCallback(async () => {
+        if (!localUserRef.current) return;
+
+        if (isScreenSharing) {
+            // Stop Screen Share
+            if (screenStream) {
+                screenStream.getTracks().forEach(track => track.stop());
+            }
+            setScreenStream(null);
+            setIsScreenSharing(false);
+
+            // Revert to Camera
+            // We need to re-get camera stream if it was stopped? 
+            // Usually we might keep camera track but disable it, or replace track.
+            // For simplicity, let's just re-acquire or use cached localStream if active?
+            // Actually, replaceTrack on all PCs.
+
+            // Assume localStream is still valid (we might have just stopped sending it)
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                pcsRef.current.forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                    if (sender && videoTrack) sender.replaceTrack(videoTrack);
+                });
+            }
+
+            setLocalUser(prev => prev ? { ...prev, isScreenSharing: false } : null);
+        } else {
+            // Start Screen Share
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: false // Usually don't want system audio for watch party?
+                });
+
+                stream.getVideoTracks()[0].onended = () => {
+                    toggleScreenShare(); // Handle stop via browser UI
+                };
+
+                setScreenStream(stream);
+                setIsScreenSharing(true);
+
+                const screenTrack = stream.getVideoTracks()[0];
+
+                // Replace video track for all peers
+                pcsRef.current.forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                    if (sender) {
+                        sender.replaceTrack(screenTrack);
+                    }
+                });
+
+                setLocalUser(prev => prev ? { ...prev, isScreenSharing: true } : null);
+            } catch (e) {
+                console.error("Error starting screen share", e);
+            }
+        }
+    }, [isScreenSharing, localStream, screenStream]);
+
+    const toggleMute = useCallback(() => {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            setLocalUser(prev => prev ? { ...prev, hasAudio: audioTrack.enabled } : null);
+            // We should probably broadcast this state change via some signaling if we want UI to update for others
+            // But for now, WebRTC standard track mute/unmute might handle it or we just rely on audio stopping.
+            // visual "mute" icon needs signaling data. 
+            // The current protocol 'room/updated' or similar doesn't exist?
+            // 'user_updated' in original code was broadcast channel specific.
+            // Shared events S2C doesn't have 'user_update'. 
+            // We might need to add it or ignore remote mute icons for now.
+        }
+    }, [localStream]);
+
+    const toggleVideo = useCallback(() => {
+        if (!localStream) return;
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            setLocalUser(prev => prev ? { ...prev, hasVideo: videoTrack.enabled } : null);
+        }
+    }, [localStream]);
+
+    const setPlayback = useCallback((state: "playing" | "paused", time: number) => {
+        if (!currentRoomId.current) return;
+        setPlaybackState(state);
+        setCurrentTime(time);
+
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "watch/playback_state",
+            payload: {
+                roomId: currentRoomId.current,
+                state: {
+                    playing: state === "playing",
+                    positionSec: time,
+                    hostTsMs: Date.now(),
+                },
+            },
+        });
+    }, [sendWs]);
+
+    const sendMessage = useCallback((text: string) => {
+        if (!currentRoomId.current) return;
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "chat/send",
+            payload: {
+                roomId: currentRoomId.current,
+                text,
+            },
+        });
+    }, [sendWs]);
+
+    const value: RoomContextType = {
+        participants,
+        localUser,
+        activeStreamUrl,
+        isScreenSharing,
+        screenStream,
+        localStream,
+        playbackState,
+        currentTime,
+        messages,
+        joinRoom,
+        leaveRoom,
+        setStreamUrl,
+        toggleScreenShare,
+        toggleMute,
+        toggleVideo,
+        setPlayback,
+        sendMessage,
+        mediaError,
+    };
+
+    return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
+}
