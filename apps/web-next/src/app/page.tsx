@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Video, Zap, Users, MonitorPlay, Menu, User } from "lucide-react";
+import { ArrowRight, Video, Zap, Users, MonitorPlay, Menu, User, X } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -27,20 +28,30 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="flex items-center justify-between px-6 py-6 max-w-7xl mx-auto relative z-50">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Video className="w-4 h-4 text-white" />
+          {/* Replaced Icon with Logo Image */}
+          <div className="relative w-10 h-10">
+            <Image
+              src="/logo.png"
+              alt="Streeem Logo"
+              fill
+              className="object-contain"
+              priority
+            />
           </div>
           <span className="font-bold text-xl tracking-tight text-white">Streeem</span>
         </div>
 
         {/* User Menu */}
         {/* User Menu */}
+        {/* User Menu */}
         <div className="relative">
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="p-2 -mr-2 text-zinc-400 hover:text-white transition-colors focus:outline-none"
+            className="p-2 -mr-2 text-zinc-400 hover:text-white transition-all duration-300 focus:outline-none"
           >
-            <Menu className="w-6 h-6" />
+            <div className={`transform transition-transform duration-300 ${isMenuOpen ? "rotate-90" : "rotate-0"}`}>
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </div>
           </button>
 
           {isMenuOpen && (
@@ -51,7 +62,9 @@ export default function LandingPage() {
                 </div>
                 <div className="overflow-hidden">
                   <p className="text-sm font-medium text-white truncate">Anant Srivastava</p>
-                  <p className="text-xs text-zinc-500 truncate">anant@streeem.com</p>
+                  <Link href="https://github.com/im-anant" target="_blank" className="text-xs text-indigo-400 hover:text-indigo-300 truncate block transition-colors">
+                    github.com/im-anant
+                  </Link>
                 </div>
               </div>
               <div className="py-1">
