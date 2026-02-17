@@ -52,12 +52,20 @@ const getIceServers = () => {
         { urls: "stun:stun.l.google.com:19302" },
     ];
 
-    if (process.env.NEXT_PUBLIC_TURN_URL) {
-        servers.push({
-            urls: process.env.NEXT_PUBLIC_TURN_URL,
-            username: process.env.NEXT_PUBLIC_TURN_USERNAME,
-            credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
-        });
+    const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
+    if (turnUrl) {
+        if (!turnUrl.startsWith("turn:") && !turnUrl.startsWith("turns:")) {
+            console.error(`[WebRTC] Invalid TURN URL: ${turnUrl}. Must start with "turn:" or "turns:". Check your environment variables.`);
+        } else {
+            console.log(`[WebRTC] Using TURN server: ${turnUrl}`);
+            servers.push({
+                urls: turnUrl,
+                username: process.env.NEXT_PUBLIC_TURN_USERNAME,
+                credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
+            });
+        }
+    } else {
+        console.warn("[WebRTC] No TURN server configured. Connection may fail behind firewalls.");
     }
 
     return {

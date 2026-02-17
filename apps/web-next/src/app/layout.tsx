@@ -3,7 +3,7 @@ import { RoomProvider } from "@/contexts/RoomContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "StreamSync",
+  title: "Streeem",
   description: "Real-time rooms (WebRTC + SFU-ready) with watch-party sync."
 };
 
