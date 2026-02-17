@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Video, Zap, Users, MonitorPlay } from "lucide-react";
+import { ArrowRight, Video, Zap, Users, MonitorPlay, Menu, User } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
   const [roomName, setRoomName] = useState("");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,16 +25,49 @@ export default function LandingPage() {
       <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-purple-600/10 rounded-full blur-[100px] -z-10 mix-blend-screen" />
 
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-6 max-w-7xl mx-auto">
+      <nav className="flex items-center justify-between px-6 py-6 max-w-7xl mx-auto relative z-50">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
             <Video className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-xl tracking-tight text-white">StreamSync</span>
+          <span className="font-bold text-xl tracking-tight text-white">Streeem</span>
         </div>
-        <div className="flex gap-4">
-          <Link href="https://github.com" className="text-zinc-400 hover:text-white transition-colors text-sm font-medium">GitHub</Link>
-          <Link href="/login" className="text-zinc-400 hover:text-white transition-colors text-sm font-medium">Login</Link>
+
+        {/* User Menu */}
+        {/* User Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="p-2 -mr-2 text-zinc-400 hover:text-white transition-colors focus:outline-none"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+
+          {isMenuOpen && (
+            <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 z-50">
+              <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+                  AS
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-sm font-medium text-white truncate">Anant Srivastava</p>
+                  <p className="text-xs text-zinc-500 truncate">anant@streeem.com</p>
+                </div>
+              </div>
+              <div className="py-1">
+                <button className="w-full text-left px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-colors">
+                  Profile Settings
+                </button>
+                <button className="w-full text-left px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-colors">
+                  Looking for updates...
+                </button>
+                <div className="h-px bg-zinc-800 my-1" />
+                <button className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-zinc-800/50 transition-colors">
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
