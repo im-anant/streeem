@@ -29,16 +29,16 @@ export default function LandingPage() {
       <nav className="flex items-center justify-between px-6 py-6 max-w-7xl mx-auto relative z-50">
         <div className="flex items-center gap-2">
           {/* Replaced Icon with Logo Image */}
-          <div className="relative w-10 h-10">
+          <div className="relative w-16 h-16">
             <Image
               src="/logo.png"
               alt="Streeem Logo"
               fill
-              className="object-contain"
+              className="object-contain mix-blend-screen"
               priority
             />
           </div>
-          <span className="font-bold text-xl tracking-tight text-white">Streeem</span>
+          <span className="font-bold text-2xl tracking-tight text-white">Streeem</span>
         </div>
 
         {/* User Menu */}
@@ -56,28 +56,16 @@ export default function LandingPage() {
 
           {isMenuOpen && (
             <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 z-50">
-              <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
+              <div className="px-4 py-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
                   AS
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">Anant Srivastava</p>
-                  <Link href="https://github.com/im-anant" target="_blank" className="text-xs text-indigo-400 hover:text-indigo-300 truncate block transition-colors">
+                  <p className="text-sm font-medium text-white truncate">Anant Srivastava <span className="text-xs text-indigo-400 ml-1">(Owner)</span></p>
+                  <Link href="https://github.com/im-anant" target="_blank" className="text-xs text-zinc-400 hover:text-indigo-400 truncate block transition-colors">
                     github.com/im-anant
                   </Link>
                 </div>
-              </div>
-              <div className="py-1">
-                <button className="w-full text-left px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-colors">
-                  Profile Settings
-                </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-colors">
-                  Looking for updates...
-                </button>
-                <div className="h-px bg-zinc-800 my-1" />
-                <button className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-zinc-800/50 transition-colors">
-                  Sign Out
-                </button>
               </div>
             </div>
           )}
