@@ -47,10 +47,22 @@ interface RoomProviderProps {
     children: React.ReactNode;
 }
 
-const ICE_SERVERS = {
-    iceServers: [
+const getIceServers = () => {
+    const servers: RTCIceServer[] = [
         { urls: "stun:stun.l.google.com:19302" },
-    ],
+    ];
+
+    if (process.env.NEXT_PUBLIC_TURN_URL) {
+        servers.push({
+            urls: process.env.NEXT_PUBLIC_TURN_URL,
+            username: process.env.NEXT_PUBLIC_TURN_USERNAME,
+            credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
+        });
+    }
+
+    return {
+        iceServers: servers,
+    };
 };
 
 export function RoomProvider({ children }: RoomProviderProps) {
@@ -84,7 +96,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
 
     // WebSocket Message Handling
     useEffect(() => {
-        const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080");
+        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
+        console.log(`[Signaling] Connecting to ${wsUrl}`);
+        const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -145,7 +159,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
 
     const createPeerConnection = (targetUserId: string) => {
         console.log(`[WebRTC] Creating PC for ${targetUserId}`);
-        const pc = new RTCPeerConnection(ICE_SERVERS);
+        const pc = new RTCPeerConnection(getIceServers());
 
         pc.oniceconnectionstatechange = () => {
             console.log(`[WebRTC] ICE Connection State (${targetUserId}): ${pc.iceConnectionState}`);
