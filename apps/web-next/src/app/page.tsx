@@ -29,7 +29,7 @@ export default function LandingPage() {
       <nav className="flex items-center justify-between px-6 py-6 max-w-7xl mx-auto relative z-50">
         <div className="flex items-center gap-2">
           {/* Replaced Icon with Logo Image */}
-          <div className="relative w-16 h-16">
+          <div className="relative w-20 h-20">
             <Image
               src="/logo.png"
               alt="Streeem Logo"
