@@ -144,7 +144,12 @@ export function RoomProvider({ children }: RoomProviderProps) {
     }, []);
 
     const createPeerConnection = (targetUserId: string) => {
+        console.log(`[WebRTC] Creating PC for ${targetUserId}`);
         const pc = new RTCPeerConnection(ICE_SERVERS);
+
+        pc.oniceconnectionstatechange = () => {
+            console.log(`[WebRTC] ICE Connection State (${targetUserId}): ${pc.iceConnectionState}`);
+        };
 
         pc.onicecandidate = (event) => {
             if (event.candidate && currentRoomId.current) {
@@ -161,7 +166,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         };
 
         pc.ontrack = (event) => {
-            console.log("Received remote track from", targetUserId);
+            console.log(`[WebRTC] Received remote track from ${targetUserId} (${event.track.kind})`);
             const stream = event.streams[0];
             setParticipants(prev => prev.map(p => {
                 if (p.id === targetUserId) {
@@ -173,9 +178,12 @@ export function RoomProvider({ children }: RoomProviderProps) {
 
         // Add local tracks if available
         if (localStreamRef.current) {
+            console.log(`[WebRTC] Adding local tracks to ${targetUserId}`);
             localStreamRef.current.getTracks().forEach(track => {
                 pc.addTrack(track, localStreamRef.current!);
             });
+        } else {
+            console.warn(`[WebRTC] No local stream found when creating PC for ${targetUserId}`);
         }
 
         pcsRef.current.set(targetUserId, pc);
@@ -304,6 +312,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 audio: true,
             });
             setLocalStream(stream);
+            localStreamRef.current = stream; // Immediate update for race condition check
         } catch (error) {
             console.error("Error accessing media devices:", error);
             if (error instanceof Error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError")) {
