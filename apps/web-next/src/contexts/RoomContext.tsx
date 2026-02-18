@@ -490,6 +490,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
                     const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
                     if (audioSender && cameraAudioTrack) {
                         audioSender.replaceTrack(cameraAudioTrack);
+                        console.log("[ScreenShare] Reverted audio sender to mic");
                     }
                 });
             }
@@ -498,9 +499,17 @@ export function RoomProvider({ children }: RoomProviderProps) {
         } else {
             // Start Screen Share
             try {
+                // Explicit audio constraints for high quality system audio
                 const displayStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: true // Request system audio
+                    video: {
+                        frameRate: 30
+                    },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        sampleRate: 44100,
+                        autoGainControl: false,
+                    }
                 });
 
                 displayStream.getVideoTracks()[0].onended = () => {
@@ -511,7 +520,10 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 setIsScreenSharing(true);
 
                 const screenVideoTrack = displayStream.getVideoTracks()[0];
-                const screenAudioTrack = displayStream.getAudioTracks()[0];
+                const screenAudioTracks = displayStream.getAudioTracks();
+                const screenAudioTrack = screenAudioTracks.length > 0 ? screenAudioTracks[0] : null;
+
+                console.log(`[ScreenShare] Got display stream. Audio tracks: ${screenAudioTracks.length}`);
 
                 // Update PeerConnections
                 pcsRef.current.forEach(pc => {
@@ -525,9 +537,14 @@ export function RoomProvider({ children }: RoomProviderProps) {
                     if (screenAudioTrack) {
                         const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
                         if (audioSender) {
-                            audioSender.replaceTrack(screenAudioTrack);
-                            console.log("[ScreenShare] Replaced mic with system audio");
+                            audioSender.replaceTrack(screenAudioTrack)
+                                .then(() => console.log("[ScreenShare] Successfully replaced mic with system audio"))
+                                .catch(err => console.error("[ScreenShare] Failed to replace audio track:", err));
+                        } else {
+                            console.warn("[ScreenShare] No audio sender found to replace");
                         }
+                    } else {
+                        console.log("[ScreenShare] No system audio track available to send");
                     }
                 });
 
