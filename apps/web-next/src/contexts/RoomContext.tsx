@@ -476,22 +476,20 @@ export function RoomProvider({ children }: RoomProviderProps) {
 
             // Revert video track to camera
             if (localStreamRef.current) {
-                const cameraTrack = localStreamRef.current.getVideoTracks()[0];
+                const cameraVideoTrack = localStreamRef.current.getVideoTracks()[0];
+                const cameraAudioTrack = localStreamRef.current.getAudioTracks()[0];
 
                 pcsRef.current.forEach(pc => {
                     // Revert video sender to camera
                     const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
-                    if (videoSender && cameraTrack) {
-                        videoSender.replaceTrack(cameraTrack);
+                    if (videoSender && cameraVideoTrack) {
+                        videoSender.replaceTrack(cameraVideoTrack);
                     }
 
-                    // Remove extra audio senders (screen audio) — keep only the first audio sender (mic)
-                    const audioSenders = pc.getSenders().filter(s => s.track?.kind === "audio");
-                    if (audioSenders.length > 1) {
-                        // Remove the extra ones (screen audio tracks we added)
-                        for (let i = 1; i < audioSenders.length; i++) {
-                            try { pc.removeTrack(audioSenders[i]); } catch (e) { /* ignore */ }
-                        }
+                    // Revert audio sender to mic
+                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                    if (audioSender && cameraAudioTrack) {
+                        audioSender.replaceTrack(cameraAudioTrack);
                     }
                 });
             }
@@ -523,18 +521,12 @@ export function RoomProvider({ children }: RoomProviderProps) {
                         videoSender.replaceTrack(screenVideoTrack);
                     }
 
-                    // Add screen audio as a separate track (mic stays as-is)
+                    // Replace audio with screen audio (if available) -> This effectively mutes mic and sends system audio
                     if (screenAudioTrack) {
-                        try {
-                            pc.addTrack(screenAudioTrack, displayStream);
-                            console.log("[ScreenShare] Added screen audio track to PC");
-                        } catch (e) {
-                            console.warn("[ScreenShare] Could not add screen audio track:", e);
-                            // Fallback: replace the existing audio sender with screen audio
-                            const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
-                            if (audioSender) {
-                                audioSender.replaceTrack(screenAudioTrack);
-                            }
+                        const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                        if (audioSender) {
+                            audioSender.replaceTrack(screenAudioTrack);
+                            console.log("[ScreenShare] Replaced mic with system audio");
                         }
                     }
                 });
