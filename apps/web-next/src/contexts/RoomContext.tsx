@@ -251,7 +251,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         return pc;
     };
 
-    const handleRoomJoined = async (payload: { roomId: string; you: ClientInfo; peers: ClientInfo[] }) => {
+    const handleRoomJoined = (payload: { roomId: string; you: ClientInfo; peers: ClientInfo[] }) => {
         const you: Participant = {
             id: payload.you.userId,
             name: payload.you.displayName,
@@ -274,28 +274,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }));
 
         setParticipants([you, ...others]);
-
-        // Proactively connect to all existing peers in the room
-        for (const peer of others) {
-            try {
-                console.log(`[WebRTC] Proactively connecting to existing peer: ${peer.name} (${peer.id})`);
-                const pc = await createPeerConnection(peer.id);
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-
-                sendWs({
-                    v: WS_PROTOCOL_VERSION,
-                    type: "webrtc/offer",
-                    payload: {
-                        roomId: payload.roomId,
-                        toUserId: peer.id,
-                        sdp: offer,
-                    },
-                });
-            } catch (e) {
-                console.error(`[WebRTC] Failed to connect to peer ${peer.id}:`, e);
-            }
-        }
+        // NOTE: We do NOT send offers here — existing peers will send us offers
+        // via handlePeerJoined. We just need to be ready to receive them
+        // (ICE buffering ensures candidates aren't dropped during async PC creation).
     };
 
     const handlePeerJoined = async (payload: { roomId: string; peer: ClientInfo }) => {
