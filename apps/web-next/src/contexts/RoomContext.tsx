@@ -88,6 +88,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     // WebSocket and WebRTC Refs
     const wsRef = useRef<WebSocket | null>(null);
     const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+    const pendingCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
     const currentRoomId = useRef<string | null>(null);
     const localUserRef = useRef<Participant | null>(null); // To access current state in event handlers
     const localStreamRef = useRef<MediaStream | null>(null);
@@ -232,6 +233,21 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
 
         pcsRef.current.set(targetUserId, pc);
+
+        // Process pending candidates
+        const pending = pendingCandidates.current.get(targetUserId);
+        if (pending && pending.length > 0) {
+            console.log(`[WebRTC] Processing ${pending.length} pending ICE candidates for ${targetUserId}`);
+            for (const candidate of pending) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.error("Error adding pending ICE candidate", e);
+                }
+            }
+            pendingCandidates.current.delete(targetUserId);
+        }
+
         return pc;
     };
 
@@ -297,6 +313,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
             pc.close();
             pcsRef.current.delete(payload.userId);
         }
+        pendingCandidates.current.delete(payload.userId);
     };
 
     const handleWebrtcOffer = async (payload: { roomId: string; fromUserId: string; sdp: RTCSessionDescriptionInit }) => {
@@ -335,6 +352,11 @@ export function RoomProvider({ children }: RoomProviderProps) {
             } catch (e) {
                 console.error("Error adding ICE candidate", e);
             }
+        } else {
+            console.warn(`[WebRTC] Received ICE for missing PC (${payload.fromUserId}), buffering.`);
+            const pending = pendingCandidates.current.get(payload.fromUserId) || [];
+            pending.push(payload.candidate);
+            pendingCandidates.current.set(payload.fromUserId, pending);
         }
     };
 
