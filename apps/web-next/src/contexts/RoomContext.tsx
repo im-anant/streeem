@@ -28,6 +28,7 @@ interface RoomContextType {
     toggleScreenShare: () => Promise<void>;
     toggleMute: () => void;
     toggleVideo: () => void;
+    switchCamera: () => Promise<void>;
     setPlayback: (state: "playing" | "paused", time: number) => void;
     sendMessage: (text: string) => void;
     mediaError: string | null;
@@ -65,12 +66,11 @@ const getIceServers = () => {
             });
         }
     } else {
-        console.warn("[WebRTC] No TURN server configured. Connection may fail behind firewalls.");
+        // We will try fetching from API if env vars are missing or if we want dynamic.
+        // But for now, let's keep this simple fallback or just rely on the async fetch we'll add.
     }
 
-    return {
-        iceServers: servers,
-    };
+    return { iceServers: servers };
 };
 
 export function RoomProvider({ children }: RoomProviderProps) {
@@ -138,6 +138,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 case "webrtc/ice":
                     handleWebrtcIce(msg.payload);
                     break;
+                case "user/updated":
+                    handleUserUpdated(msg.payload);
+                    break;
                 case "chat/message":
                     handleChatMessage(msg.payload);
                     break;
@@ -154,7 +157,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         return () => {
             ws.close();
             // Cleanup PCs
-            pcsRef.current.forEach(pc => pc.close());
+            pcsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
             pcsRef.current.clear();
         };
     }, []);
@@ -165,9 +168,29 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
     }, []);
 
-    const createPeerConnection = (targetUserId: string) => {
+    const createPeerConnection = async (targetUserId: string) => {
         console.log(`[WebRTC] Creating PC for ${targetUserId}`);
-        const pc = new RTCPeerConnection(getIceServers());
+
+        // Fetch ICE servers dynamically
+        const { iceServers } = getIceServers();
+
+        try {
+            const res = await fetch('/api/turn-credentials');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.username && data.credential && data.urls) {
+                    iceServers.push({
+                        urls: data.urls,
+                        username: data.username,
+                        credential: data.credential,
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch TURN credentials", e);
+        }
+
+        const pc = new RTCPeerConnection({ iceServers });
 
         pc.oniceconnectionstatechange = () => {
             console.log(`[WebRTC] ICE Connection State (${targetUserId}): ${pc.iceConnectionState}`);
@@ -190,7 +213,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         pc.ontrack = (event) => {
             console.log(`[WebRTC] Received remote track from ${targetUserId} (${event.track.kind})`);
             const stream = event.streams[0];
-            setParticipants(prev => prev.map(p => {
+            setParticipants((prev: Participant[]) => prev.map((p: Participant) => {
                 if (p.id === targetUserId) {
                     return { ...p, stream };
                 }
@@ -201,7 +224,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         // Add local tracks if available
         if (localStreamRef.current) {
             console.log(`[WebRTC] Adding local tracks to ${targetUserId}`);
-            localStreamRef.current.getTracks().forEach(track => {
+            localStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => {
                 pc.addTrack(track, localStreamRef.current!);
             });
         } else {
@@ -248,10 +271,11 @@ export function RoomProvider({ children }: RoomProviderProps) {
             isScreenSharing: false,
         };
 
-        setParticipants(prev => [...prev, peer]);
+        setParticipants((prev: Participant[]) => [...prev, peer]);
 
         // We initiate the connection to the new peer
-        const pc = createPeerConnection(peer.id);
+        // We initiate the connection to the new peer
+        const pc = await createPeerConnection(peer.id);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
@@ -267,7 +291,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     };
 
     const handlePeerLeft = (payload: { roomId: string; userId: string }) => {
-        setParticipants(prev => prev.filter(p => p.id !== payload.userId));
+        setParticipants((prev: Participant[]) => prev.filter((p: Participant) => p.id !== payload.userId));
         const pc = pcsRef.current.get(payload.userId);
         if (pc) {
             pc.close();
@@ -278,7 +302,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     const handleWebrtcOffer = async (payload: { roomId: string; fromUserId: string; sdp: RTCSessionDescriptionInit }) => {
         let pc = pcsRef.current.get(payload.fromUserId);
         if (!pc) {
-            pc = createPeerConnection(payload.fromUserId);
+            pc = await createPeerConnection(payload.fromUserId);
         }
 
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
@@ -314,8 +338,17 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
     };
 
+    const handleUserUpdated = (payload: { roomId: string; userId: string; state: Partial<Participant> }) => {
+        setParticipants(prev => prev.map(p => {
+            if (p.id === payload.userId) {
+                return { ...p, ...payload.state };
+            }
+            return p;
+        }));
+    };
+
     const handleChatMessage = (payload: { from: ClientInfo; text: string; tsMs: number }) => {
-        setMessages(prev => [...prev, {
+        setMessages((prev: ChatMessage[]) => [...prev, {
             id: `msg_${payload.tsMs}`,
             sender: payload.from.displayName,
             text: payload.text,
@@ -375,11 +408,11 @@ export function RoomProvider({ children }: RoomProviderProps) {
 
         // Cleanup
         if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
+            localStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
             setLocalStream(null);
         }
         if (screenStream) {
-            screenStream.getTracks().forEach(track => track.stop());
+            screenStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
             setScreenStream(null);
         }
 
@@ -411,53 +444,94 @@ export function RoomProvider({ children }: RoomProviderProps) {
         if (isScreenSharing) {
             // Stop Screen Share
             if (screenStream) {
-                screenStream.getTracks().forEach(track => track.stop());
+                screenStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
             }
             setScreenStream(null);
             setIsScreenSharing(false);
 
-            // Revert to Camera
-            // We need to re-get camera stream if it was stopped? 
-            // Usually we might keep camera track but disable it, or replace track.
-            // For simplicity, let's just re-acquire or use cached localStream if active?
-            // Actually, replaceTrack on all PCs.
-
-            // Assume localStream is still valid (we might have just stopped sending it)
+            // Revert audio track if mixed
             if (localStream) {
+                const originalAudioTrack = localStream.getAudioTracks()[0];
                 const videoTrack = localStream.getVideoTracks()[0];
+
                 pcsRef.current.forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                    if (sender && videoTrack) sender.replaceTrack(videoTrack);
+                    // Revert video
+                    const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
+                    if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+
+                    // Revert audio
+                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                    if (audioSender && originalAudioTrack) audioSender.replaceTrack(originalAudioTrack);
                 });
             }
 
-            setLocalUser(prev => prev ? { ...prev, isScreenSharing: false } : null);
+            setLocalUser((prev: Participant | null) => prev ? { ...prev, isScreenSharing: false } : null);
         } else {
             // Start Screen Share
             try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({
+                // 1. Get Screen Stream (with System Audio if possible)
+                const displayStream = await navigator.mediaDevices.getDisplayMedia({
                     video: true,
-                    audio: false // Usually don't want system audio for watch party?
+                    audio: true // Request system audio
                 });
 
-                stream.getVideoTracks()[0].onended = () => {
+                displayStream.getVideoTracks()[0].onended = () => {
                     toggleScreenShare(); // Handle stop via browser UI
                 };
 
-                setScreenStream(stream);
+                setScreenStream(displayStream);
                 setIsScreenSharing(true);
 
-                const screenTrack = stream.getVideoTracks()[0];
+                const screenVideoTrack = displayStream.getVideoTracks()[0];
+                const screenAudioTrack = displayStream.getAudioTracks()[0];
 
-                // Replace video track for all peers
+                // 2. Audio Mixing Logic
+                let mixedAudioTrack: MediaStreamTrack | null = null;
+
+                if (screenAudioTrack && localStream) {
+                    const micTrack = localStream.getAudioTracks()[0];
+                    if (micTrack) {
+                        try {
+                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                            const destination = audioCtx.createMediaStreamDestination();
+
+                            const micSource = audioCtx.createMediaStreamSource(new MediaStream([micTrack]));
+                            const sysSource = audioCtx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+
+                            micSource.connect(destination);
+                            sysSource.connect(destination);
+
+                            mixedAudioTrack = destination.stream.getAudioTracks()[0];
+                        } catch (err) {
+                            console.error("Error mixing audio:", err);
+                        }
+                    }
+                }
+
+                // Fallback: if mixing failed or no system audio, just keep using mic track (or switch to system if preferred? No, keep mic)
+                // Actually if system audio exists but no mixing, maybe we should just send system? 
+                // Better default: If we can't mix, usually we just send mic as primary comms.
+                // But let's assume mixing works or we default to separate tracks (WebRTC usually one audio track per stream unless multi-stream).
+                // We will stick to replacing the SINGLE audio track on the PC.
+
+                const audioTrackReplacing = mixedAudioTrack || (localStream?.getAudioTracks()[0]);
+
+                // 3. Update PeerConnections
                 pcsRef.current.forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                    if (sender) {
-                        sender.replaceTrack(screenTrack);
+                    // Replace Video
+                    const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
+                    if (videoSender) {
+                        videoSender.replaceTrack(screenVideoTrack);
+                    }
+
+                    // Replace Audio (with mixed or original)
+                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                    if (audioSender && audioTrackReplacing) {
+                        audioSender.replaceTrack(audioTrackReplacing);
                     }
                 });
 
-                setLocalUser(prev => prev ? { ...prev, isScreenSharing: true } : null);
+                setLocalUser((prev: Participant | null) => prev ? { ...prev, isScreenSharing: true } : null);
             } catch (e) {
                 console.error("Error starting screen share", e);
             }
@@ -469,14 +543,18 @@ export function RoomProvider({ children }: RoomProviderProps) {
         const audioTrack = localStream.getAudioTracks()[0];
         if (audioTrack) {
             audioTrack.enabled = !audioTrack.enabled;
-            setLocalUser(prev => prev ? { ...prev, hasAudio: audioTrack.enabled } : null);
-            // We should probably broadcast this state change via some signaling if we want UI to update for others
-            // But for now, WebRTC standard track mute/unmute might handle it or we just rely on audio stopping.
-            // visual "mute" icon needs signaling data. 
-            // The current protocol 'room/updated' or similar doesn't exist?
-            // 'user_updated' in original code was broadcast channel specific.
-            // Shared events S2C doesn't have 'user_update'. 
-            // We might need to add it or ignore remote mute icons for now.
+            setLocalUser((prev: Participant | null) => prev ? { ...prev, hasAudio: audioTrack.enabled } : null);
+
+            if (currentRoomId.current) {
+                sendWs({
+                    v: WS_PROTOCOL_VERSION,
+                    type: "user/update",
+                    payload: {
+                        roomId: currentRoomId.current,
+                        state: { hasAudio: audioTrack.enabled }
+                    }
+                });
+            }
         }
     }, [localStream]);
 
@@ -485,7 +563,66 @@ export function RoomProvider({ children }: RoomProviderProps) {
         const videoTrack = localStream.getVideoTracks()[0];
         if (videoTrack) {
             videoTrack.enabled = !videoTrack.enabled;
-            setLocalUser(prev => prev ? { ...prev, hasVideo: videoTrack.enabled } : null);
+            setLocalUser((prev: Participant | null) => prev ? { ...prev, hasVideo: videoTrack.enabled } : null);
+
+            if (currentRoomId.current) {
+                sendWs({
+                    v: WS_PROTOCOL_VERSION,
+                    type: "user/update",
+                    payload: {
+                        roomId: currentRoomId.current,
+                        state: { hasVideo: videoTrack.enabled }
+                    }
+                });
+            }
+        }
+    }, [localStream]);
+
+    const switchCamera = useCallback(async () => {
+        if (!localStream) return;
+
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+            if (videoDevices.length <= 1) {
+                console.warn("No other camera available to switch to.");
+                return;
+            }
+
+            const currentTrack = localStream.getVideoTracks()[0];
+            const currentDeviceId = currentTrack?.getSettings().deviceId;
+
+            const currentIndex = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
+            const nextIndex = (currentIndex + 1) % videoDevices.length;
+            const nextDevice = videoDevices[nextIndex];
+
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: nextDevice.deviceId } },
+                audio: false
+            });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+
+            if (currentTrack) {
+                localStream.removeTrack(currentTrack);
+                currentTrack.stop();
+            }
+            localStream.addTrack(newVideoTrack);
+
+            // Replace track in peer connections
+            pcsRef.current.forEach((pc: RTCPeerConnection) => {
+                const sender = pc.getSenders().find((s: RTCRtpSender) => s.track?.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(newVideoTrack);
+                }
+            });
+
+            // Force update local stream ref
+            setLocalStream(new MediaStream([newVideoTrack, ...localStream.getAudioTracks()]));
+            localStreamRef.current = new MediaStream([newVideoTrack, ...localStream.getAudioTracks()]);
+
+        } catch (e) {
+            console.error("Error switching camera:", e);
         }
     }, [localStream]);
 
@@ -536,6 +673,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         toggleScreenShare,
         toggleMute,
         toggleVideo,
+        switchCamera,
         setPlayback,
         sendMessage,
         mediaError,

@@ -102,6 +102,18 @@ export type C2S =
       toUserId: UserId;
       candidate: RTCIceCandidateInit;
     }
+  >
+  | WsEnvelope<
+    "user/update",
+    {
+      roomId: RoomId;
+      state: Partial<{
+        hasAudio: boolean;
+        hasVideo: boolean;
+        isSpeaking: boolean;
+        isScreenSharing: boolean;
+      }>;
+    }
   >;
 
 /**
@@ -189,6 +201,19 @@ export type S2C =
       roomId: RoomId;
       fromUserId: UserId;
       candidate: RTCIceCandidateInit;
+    }
+  >
+  | WsEnvelope<
+    "user/updated",
+    {
+      roomId: RoomId;
+      userId: UserId;
+      state: Partial<{
+        hasAudio: boolean;
+        hasVideo: boolean;
+        isSpeaking: boolean;
+        isScreenSharing: boolean;
+      }>;
     }
   >
   | WsEnvelope<

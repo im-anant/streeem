@@ -1,0 +1,27 @@
+services:
+  # 1. Frontend & API
+  - type: web
+    name: streeem-web
+    env: node
+    buildCommand: npm install && npm run build:web
+    startCommand: npm run start:web
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_WS_URL
+        fromService:
+          type: web
+          name: streeem-signaling
+          property: host
+      - key: TURN_CREDENTIALS_JSON
+        sync: false # User must set this manually in Render Dashboard (JSON from Open Relay or ExpressTURN)
+
+  # 2. Signaling Server
+  - type: web
+    name: streeem-signaling
+    env: docker
+    dockerContext: .
+    dockerfilePath: apps/signaling/Dockerfile
+    envVars:
+      - key: PORT
+        value: 10000
