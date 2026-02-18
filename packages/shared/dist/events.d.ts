@@ -65,6 +65,14 @@ export type C2S = WsEnvelope<"room/join", {
     roomId: RoomId;
     toUserId: UserId;
     candidate: RTCIceCandidateInit;
+}> | WsEnvelope<"user/update", {
+    roomId: RoomId;
+    state: Partial<{
+        hasAudio: boolean;
+        hasVideo: boolean;
+        isSpeaking: boolean;
+        isScreenSharing: boolean;
+    }>;
 }>;
 /**
  * Server -> Client events
@@ -112,6 +120,15 @@ export type S2C = WsEnvelope<"server/hello", {
     roomId: RoomId;
     fromUserId: UserId;
     candidate: RTCIceCandidateInit;
+}> | WsEnvelope<"user/updated", {
+    roomId: RoomId;
+    userId: UserId;
+    state: Partial<{
+        hasAudio: boolean;
+        hasVideo: boolean;
+        isSpeaking: boolean;
+        isScreenSharing: boolean;
+    }>;
 }> | WsEnvelope<"error", {
     requestId?: string;
     code: "bad_request" | "unauthorized" | "not_in_room" | "room_not_found" | "peer_not_found" | "internal";
