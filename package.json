@@ -8,9 +8,9 @@
   "scripts": {
     "build:shared": "tsc -p packages/shared/tsconfig.json",
     "build:signaling": "tsc -p apps/signaling/tsconfig.json",
+    "build:web": "npm run build:shared && npm run build --workspace=@streamsync/web-next",
+    "start:web": "npm run start --workspace=@streamsync/web-next",
     "dev:signaling": "node --enable-source-maps apps/signaling/dist/server.js",
     "typecheck": "tsc -b -v"
   }
 }
-
-
