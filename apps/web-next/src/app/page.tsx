@@ -55,13 +55,15 @@ export default function LandingPage() {
           </button>
 
           {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 z-50">
+            <div className="absolute right-0 mt-2 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 z-50">
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
                   AS
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">Anant Srivastava <span className="text-xs text-indigo-400 ml-1">(Owner)</span></p>
+                  <p className="text-sm font-medium text-white truncate" title="Anant Srivastava (Owner)">
+                    Anant Srivastava <span className="text-xs text-indigo-400 ml-1">(Owner)</span>
+                  </p>
                   <Link href="https://github.com/im-anant" target="_blank" className="text-xs text-zinc-400 hover:text-indigo-400 truncate block transition-colors">
                     github.com/im-anant
                   </Link>
@@ -72,7 +74,9 @@ export default function LandingPage() {
                   SV
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">Shikhar Verma <span className="text-xs text-emerald-400 ml-1 block sm:inline">(Employee of the month)</span></p>
+                  <p className="text-sm font-medium text-white truncate" title="Shikhar Verma (Employee of the month)">
+                    Shikhar Verma <span className="text-xs text-emerald-400 ml-1 block sm:inline">(Employee of the month)</span>
+                  </p>
                   <Link href="https://github.com/Shikhyy" target="_blank" className="text-xs text-zinc-400 hover:text-emerald-400 truncate block transition-colors">
                     github.com/Shikhyy
                   </Link>
