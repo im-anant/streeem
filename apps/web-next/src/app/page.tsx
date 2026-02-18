@@ -62,7 +62,7 @@ export default function LandingPage() {
                 </div>
                 <div className="overflow-hidden">
                   <p className="text-sm font-medium text-white truncate" title="Anant Srivastava (Owner)">
-                    Anant Srivastava <span className="text-xs text-indigo-400 ml-1">(Owner)</span>
+                    Anant Srivastava <span className="text-xs text-indigo-400 ml-1">(Owner 👑)</span>
                   </p>
                   <Link href="https://github.com/im-anant" target="_blank" className="text-xs text-zinc-400 hover:text-indigo-400 truncate block transition-colors">
                     github.com/im-anant
@@ -79,6 +79,19 @@ export default function LandingPage() {
                   </p>
                   <Link href="https://github.com/Shikhyy" target="_blank" className="text-xs text-zinc-400 hover:text-emerald-400 truncate block transition-colors">
                     github.com/Shikhyy
+                  </Link>
+                </div>
+              </div>
+              <div className="px-4 py-3 flex items-center gap-3 border-t border-zinc-800">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+                  AP
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-sm font-medium text-white truncate" title="Aaditya Pratap (Employee of the Minute)">
+                    Aaditya Pratap <span className="text-xs text-pink-400 ml-1 block sm:inline">(Employee of the Minute)</span>
+                  </p>
+                  <Link href="https://github.com/2aadi" target="_blank" className="text-xs text-zinc-400 hover:text-pink-400 truncate block transition-colors">
+                    github.com/2aadi
                   </Link>
                 </div>
               </div>
@@ -110,23 +123,48 @@ export default function LandingPage() {
         {/* Room Creation Box */}
         <div className="max-w-md mx-auto relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-          <form onSubmit={handleCreate} className="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 focus-within:ring-2 focus-within:ring-indigo-500/50 shadow-2xl">
-            <span className="pl-4 text-zinc-500 font-medium select-none">streeem.com/</span>
-            <input
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-              placeholder="your-room-name"
-              className="flex-1 bg-transparent border-none text-white placeholder:text-zinc-600 focus:outline-none px-1 py-2"
-              autoFocus
-            />
+          <div className="relative bg-zinc-900 border border-zinc-800 rounded-xl p-2 shadow-2xl space-y-3">
+            {/* Create Button */}
             <button
-              type="submit"
-              disabled={!roomName}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                const newId = Math.random().toString(36).substring(2, 8);
+                router.push(`/room/${newId}`);
+              }}
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white p-3.5 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 group/btn"
             >
-              <ArrowRight className="w-5 h-5" />
+              <Zap className="w-5 h-5 fill-current" />
+              <span>Create Instant Room</span>
+              <ArrowRight className="w-4 h-4 ml-1 group-hover/btn:translate-x-1 transition-transform" />
             </button>
-          </form>
+
+            <div className="relative flex items-center py-1">
+              <div className="flex-grow border-t border-zinc-800"></div>
+              <span className="flex-shrink-0 mx-4 text-zinc-600 text-xs font-medium uppercase tracking-wider">or join with code</span>
+              <div className="flex-grow border-t border-zinc-800"></div>
+            </div>
+
+            {/* Join Form */}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!roomName.trim()) return;
+              router.push(`/room/${roomName.trim()}`);
+            }} className="flex items-center bg-zinc-950/50 border border-zinc-800/50 rounded-lg p-1 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all">
+              <span className="pl-3 text-zinc-500 select-none">#</span>
+              <input
+                value={roomName}
+                onChange={(e) => setRoomName(e.target.value)}
+                placeholder="Enter room code"
+                className="flex-1 bg-transparent border-none text-white placeholder:text-zinc-600 focus:outline-none px-2 py-2 text-sm font-mono"
+              />
+              <button
+                type="submit"
+                disabled={!roomName}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white p-2 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* Feature Grid */}
