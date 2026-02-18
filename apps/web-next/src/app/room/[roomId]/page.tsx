@@ -78,6 +78,30 @@ export default function RoomPage() {
                         <span>⚠️ {mediaError}</span>
                     </div>
                 )}
+
+                {/* Always-visible Share Bar */}
+                <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(window.location.href);
+                        }}
+                        className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
+                        title="Copy Room Link"
+                    >
+                        <Share2 className="w-3 h-3" />
+                        <span className="font-medium">Share Link</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(roomId);
+                        }}
+                        className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
+                        title="Copy Room Code"
+                    >
+                        <Copy className="w-3 h-3" />
+                        <span className="font-medium">Code: {roomId}</span>
+                    </button>
+                </div>
                 {/* Stream / Spotlight Area */}
                 {showSpotlight ? (
                     <div className="flex-1 p-4 flex flex-col gap-4">
@@ -131,28 +155,6 @@ export default function RoomPage() {
                             ) : null}
 
                             <div className="absolute top-4 right-4 flex items-center gap-2">
-                                <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(window.location.href);
-                                        // Visual feedback could be added here, e.g. toast
-                                    }}
-                                    className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
-                                    title="Copy Room Link"
-                                >
-                                    <Share2 className="w-3 h-3" />
-                                    <span className="font-medium">Link</span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(roomId);
-                                        // Visual feedback could be added here
-                                    }}
-                                    className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
-                                    title="Copy Room Code"
-                                >
-                                    <Copy className="w-3 h-3" />
-                                    <span className="font-medium">Code: {roomId}</span>
-                                </button>
                                 <div className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                                     {activeStreamUrl ? "Synced Watch Party" : "Live Screen Share"}

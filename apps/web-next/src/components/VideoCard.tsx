@@ -47,27 +47,32 @@ export function VideoCard({ participant, className }: VideoCardProps) {
         >
             {/* Video Placeholder / Stream */}
             <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
-                {participant.hasVideo ? (
-                    // Mock video stream visualization
-                    (participant.isLocal && localStream) || (!participant.isLocal && participant.stream) ? (
-                        <video
-                            ref={videoRef}
-                            autoPlay
-                            muted={participant.isLocal || !participant.hasAudio}
-                            playsInline
-                            className={clsx(
-                                "w-full h-full object-cover",
-                                participant.isLocal && "transform -scale-x-100"
-                            )}
-                        />
-                    ) : (
-                        <div className="w-full h-full bg-zinc-800 animate-pulse flex items-center justify-center text-zinc-700">
-                            {participant.isLocal ? "Camera Loading..." : "Remote Stream Loading..."}
-                        </div>
-                    )
-                ) : (
+                {/* Always keep video element mounted to preserve srcObject */}
+                {((participant.isLocal && localStream) || (!participant.isLocal && participant.stream)) && (
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        muted={participant.isLocal || !participant.hasAudio}
+                        playsInline
+                        className={clsx(
+                            "w-full h-full object-cover",
+                            participant.isLocal && "transform -scale-x-100",
+                            !participant.hasVideo && "hidden"
+                        )}
+                    />
+                )}
+
+                {/* Show avatar when video is off or no stream */}
+                {!participant.hasVideo || (participant.isLocal ? !localStream : !participant.stream) ? (
                     <div className="h-20 w-20 rounded-full bg-zinc-800 flex items-center justify-center">
                         <User className="h-8 w-8 text-zinc-500" />
+                    </div>
+                ) : null}
+
+                {/* Loading state when hasVideo but no stream yet */}
+                {participant.hasVideo && (participant.isLocal ? !localStream : !participant.stream) && (
+                    <div className="w-full h-full bg-zinc-800 animate-pulse flex items-center justify-center text-zinc-700">
+                        {participant.isLocal ? "Camera Loading..." : "Remote Stream Loading..."}
                     </div>
                 )}
             </div>
