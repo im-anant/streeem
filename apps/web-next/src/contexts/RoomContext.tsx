@@ -28,6 +28,7 @@ interface RoomContextType {
     toggleScreenShare: () => Promise<void>;
     toggleMute: () => void;
     toggleVideo: () => void;
+    switchCamera: () => Promise<void>;
     setPlayback: (state: "playing" | "paused", time: number) => void;
     sendMessage: (text: string) => void;
     mediaError: string | null;
@@ -448,18 +449,19 @@ export function RoomProvider({ children }: RoomProviderProps) {
             setScreenStream(null);
             setIsScreenSharing(false);
 
-            // Revert to Camera
-            // We need to re-get camera stream if it was stopped? 
-            // Usually we might keep camera track but disable it, or replace track.
-            // For simplicity, let's just re-acquire or use cached localStream if active?
-            // Actually, replaceTrack on all PCs.
-
-            // Assume localStream is still valid (we might have just stopped sending it)
+            // Revert audio track if mixed
             if (localStream) {
+                const originalAudioTrack = localStream.getAudioTracks()[0];
                 const videoTrack = localStream.getVideoTracks()[0];
+
                 pcsRef.current.forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                    if (sender && videoTrack) sender.replaceTrack(videoTrack);
+                    // Revert video
+                    const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
+                    if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+
+                    // Revert audio
+                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                    if (audioSender && originalAudioTrack) audioSender.replaceTrack(originalAudioTrack);
                 });
             }
 
@@ -467,25 +469,65 @@ export function RoomProvider({ children }: RoomProviderProps) {
         } else {
             // Start Screen Share
             try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({
+                // 1. Get Screen Stream (with System Audio if possible)
+                const displayStream = await navigator.mediaDevices.getDisplayMedia({
                     video: true,
-                    audio: false // Usually don't want system audio for watch party?
+                    audio: true // Request system audio
                 });
 
-                stream.getVideoTracks()[0].onended = () => {
+                displayStream.getVideoTracks()[0].onended = () => {
                     toggleScreenShare(); // Handle stop via browser UI
                 };
 
-                setScreenStream(stream);
+                setScreenStream(displayStream);
                 setIsScreenSharing(true);
 
-                const screenTrack = stream.getVideoTracks()[0];
+                const screenVideoTrack = displayStream.getVideoTracks()[0];
+                const screenAudioTrack = displayStream.getAudioTracks()[0];
 
-                // Replace video track for all peers
+                // 2. Audio Mixing Logic
+                let mixedAudioTrack: MediaStreamTrack | null = null;
+
+                if (screenAudioTrack && localStream) {
+                    const micTrack = localStream.getAudioTracks()[0];
+                    if (micTrack) {
+                        try {
+                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                            const destination = audioCtx.createMediaStreamDestination();
+
+                            const micSource = audioCtx.createMediaStreamSource(new MediaStream([micTrack]));
+                            const sysSource = audioCtx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+
+                            micSource.connect(destination);
+                            sysSource.connect(destination);
+
+                            mixedAudioTrack = destination.stream.getAudioTracks()[0];
+                        } catch (err) {
+                            console.error("Error mixing audio:", err);
+                        }
+                    }
+                }
+
+                // Fallback: if mixing failed or no system audio, just keep using mic track (or switch to system if preferred? No, keep mic)
+                // Actually if system audio exists but no mixing, maybe we should just send system? 
+                // Better default: If we can't mix, usually we just send mic as primary comms.
+                // But let's assume mixing works or we default to separate tracks (WebRTC usually one audio track per stream unless multi-stream).
+                // We will stick to replacing the SINGLE audio track on the PC.
+
+                const audioTrackReplacing = mixedAudioTrack || (localStream?.getAudioTracks()[0]);
+
+                // 3. Update PeerConnections
                 pcsRef.current.forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                    if (sender) {
-                        sender.replaceTrack(screenTrack);
+                    // Replace Video
+                    const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
+                    if (videoSender) {
+                        videoSender.replaceTrack(screenVideoTrack);
+                    }
+
+                    // Replace Audio (with mixed or original)
+                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                    if (audioSender && audioTrackReplacing) {
+                        audioSender.replaceTrack(audioTrackReplacing);
                     }
                 });
 
@@ -536,6 +578,54 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
     }, [localStream]);
 
+    const switchCamera = useCallback(async () => {
+        if (!localStream) return;
+
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+            if (videoDevices.length <= 1) {
+                console.warn("No other camera available to switch to.");
+                return;
+            }
+
+            const currentTrack = localStream.getVideoTracks()[0];
+            const currentDeviceId = currentTrack?.getSettings().deviceId;
+
+            const currentIndex = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
+            const nextIndex = (currentIndex + 1) % videoDevices.length;
+            const nextDevice = videoDevices[nextIndex];
+
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: nextDevice.deviceId } },
+                audio: false
+            });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+
+            if (currentTrack) {
+                localStream.removeTrack(currentTrack);
+                currentTrack.stop();
+            }
+            localStream.addTrack(newVideoTrack);
+
+            // Replace track in peer connections
+            pcsRef.current.forEach((pc: RTCPeerConnection) => {
+                const sender = pc.getSenders().find((s: RTCRtpSender) => s.track?.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(newVideoTrack);
+                }
+            });
+
+            // Force update local stream ref
+            setLocalStream(new MediaStream([newVideoTrack, ...localStream.getAudioTracks()]));
+            localStreamRef.current = new MediaStream([newVideoTrack, ...localStream.getAudioTracks()]);
+
+        } catch (e) {
+            console.error("Error switching camera:", e);
+        }
+    }, [localStream]);
+
     const setPlayback = useCallback((state: "playing" | "paused", time: number) => {
         if (!currentRoomId.current) return;
         setPlaybackState(state);
@@ -583,6 +673,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         toggleScreenShare,
         toggleMute,
         toggleVideo,
+        switchCamera,
         setPlayback,
         sendMessage,
         mediaError,

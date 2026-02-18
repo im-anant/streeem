@@ -31,7 +31,8 @@ export default function RoomPage() {
     const [streamModalOpen, setStreamModalOpen] = useState(false);
 
     // Computed active view
-    const showSpotlight = activeStreamUrl || isScreenSharing;
+    const remoteScreenShare = participants.find(p => p.isScreenSharing && !p.isLocal);
+    const showSpotlight = activeStreamUrl || isScreenSharing || !!remoteScreenShare;
 
     // Handle immediate join for demo if localUser is missing but we are on this page?
     // Actually, let's show a "Pre-Join" screen if !localUser
@@ -83,8 +84,8 @@ export default function RoomPage() {
                         <div className="flex-1 rounded-2xl overflow-hidden shadow-2xl bg-black relative group my-auto max-h-[85vh] ring-1 ring-white/10">
                             {activeStreamUrl ? (
                                 <VideoPlayer />
-                            ) : (
-                                // Screen Share
+                            ) : isScreenSharing ? (
+                                // Local Screen Share
                                 <div className="w-full h-full bg-zinc-900 flex items-center justify-center relative overflow-hidden">
                                     {screenStream ? (
                                         <video
@@ -108,7 +109,25 @@ export default function RoomPage() {
                                         </button>
                                     </div>
                                 </div>
-                            )}
+                            ) : remoteScreenShare ? (
+                                // Remote Screen Share
+                                <div className="w-full h-full bg-zinc-900 flex items-center justify-center relative overflow-hidden">
+                                    <video
+                                        autoPlay
+                                        playsInline
+                                        // muted // Don't mute remote screen share usually? But usually it has no audio unless system audio shared.
+                                        ref={(v) => {
+                                            if (v && remoteScreenShare.stream) {
+                                                v.srcObject = remoteScreenShare.stream;
+                                            }
+                                        }}
+                                        className="w-full h-full object-contain"
+                                    />
+                                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full text-xs text-white border border-white/10">
+                                        {remoteScreenShare.name}'s Screen
+                                    </div>
+                                </div>
+                            ) : null}
 
                             <div className="absolute top-4 right-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full text-xs text-white border border-white/10 flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -116,13 +135,32 @@ export default function RoomPage() {
                             </div>
                         </div>
                         {/* Filmstrip for participants */}
-                        <div className="h-32 flex gap-4 overflow-x-auto pb-2 shrink-0">
+                        <div className="h-40 flex gap-4 overflow-x-auto pb-4 shrink-0 mt-auto w-full px-2 mask-linear-fade">
                             {participants.map(p => (
-                                <div key={p.id} className="min-w-[160px] h-full rounded-xl bg-zinc-900 border border-zinc-800 relative overflow-hidden group">
-                                    <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
-                                    <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded backdrop-blur">
-                                        {p.name} {p.isLocal && "(You)"}
-                                    </span>
+                                <div key={p.id} className="min-w-[200px] h-full rounded-xl bg-zinc-900 border border-zinc-800 relative overflow-hidden group shadow-lg ring-1 ring-white/5">
+                                    {p.stream ? (
+                                        <video
+                                            autoPlay
+                                            playsInline
+                                            muted={p.isLocal}
+                                            ref={(v) => {
+                                                if (v) v.srcObject = p.stream!;
+                                            }}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
+                                            <span className="text-zinc-500 text-sm font-medium">No Video</span>
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                                        <div className="flex items-center gap-2">
+                                            <div className="bg-white/10 backdrop-blur rounded-full px-2 py-0.5 text-[10px] font-medium text-white ring-1 ring-white/10">
+                                                {p.name} {p.isLocal && "(You)"}
+                                            </div>
+                                            {/* Audio status indicator could go here */}
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

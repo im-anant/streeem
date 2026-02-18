@@ -6,7 +6,8 @@ import {
   MonitorUp,
   MessageSquare,
   PhoneOff,
-  Play
+  Play,
+  Camera
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -23,7 +24,7 @@ export function ControlBar({
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
 }) {
-  const { localUser, toggleMute, toggleVideo, toggleScreenShare, isScreenSharing, leaveRoom } = useRoom();
+  const { localUser, toggleMute, toggleVideo, toggleScreenShare, isScreenSharing, leaveRoom, switchCamera } = useRoom();
 
   // Guard: if no user, render nothing or disabled (though RoomPage handles this)
   if (!localUser) return null;
@@ -43,6 +44,12 @@ export function ControlBar({
         active={!isVideoOff}
         icon={isVideoOff ? VideoOff : Video}
         className={isVideoOff ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" : "bg-neutral-800 hover:bg-neutral-700"}
+      />
+      <ControlButton
+        onClick={switchCamera}
+        icon={Camera}
+        title="Switch Camera"
+        className="bg-neutral-800 hover:bg-neutral-700"
       />
 
       <div className="w-px h-8 bg-white/10 mx-1" />
