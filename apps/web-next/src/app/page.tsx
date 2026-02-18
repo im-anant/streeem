@@ -67,6 +67,17 @@ export default function LandingPage() {
                   </Link>
                 </div>
               </div>
+              <div className="px-4 py-3 flex items-center gap-3 border-t border-zinc-800">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+                  SV
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-sm font-medium text-white truncate">Shikhar Verma <span className="text-xs text-emerald-400 ml-1 block sm:inline">(Employee of the month)</span></p>
+                  <Link href="https://github.com/Shikhyy" target="_blank" className="text-xs text-zinc-400 hover:text-emerald-400 truncate block transition-colors">
+                    github.com/Shikhyy
+                  </Link>
+                </div>
+              </div>
             </div>
           )}
         </div>
