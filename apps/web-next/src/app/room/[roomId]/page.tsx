@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { Share2, Copy } from "lucide-react";
 import { VideoGrid } from "@/components/VideoGrid";
 import { ControlBar } from "@/components/ControlBar";
 import { Sidebar } from "@/components/Sidebar";
@@ -110,9 +111,33 @@ export default function RoomPage() {
                                 </div>
                             )}
 
-                            <div className="absolute top-4 right-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full text-xs text-white border border-white/10 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                                {activeStreamUrl ? "Synced Watch Party" : "Live Screen Share"}
+                            <div className="absolute top-4 right-4 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(window.location.href);
+                                        // Visual feedback could be added here, e.g. toast
+                                    }}
+                                    className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
+                                    title="Copy Room Link"
+                                >
+                                    <Share2 className="w-3 h-3" />
+                                    <span className="font-medium">Link</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(roomId);
+                                        // Visual feedback could be added here
+                                    }}
+                                    className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
+                                    title="Copy Room Code"
+                                >
+                                    <Copy className="w-3 h-3" />
+                                    <span className="font-medium">Code: {roomId}</span>
+                                </button>
+                                <div className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                    {activeStreamUrl ? "Synced Watch Party" : "Live Screen Share"}
+                                </div>
                             </div>
                         </div>
                         {/* Filmstrip for participants */}
