@@ -251,7 +251,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         return pc;
     };
 
-    const handleRoomJoined = (payload: { roomId: string; you: ClientInfo; peers: ClientInfo[] }) => {
+    const handleRoomJoined = async (payload: { roomId: string; you: ClientInfo; peers: ClientInfo[] }) => {
         const you: Participant = {
             id: payload.you.userId,
             name: payload.you.displayName,
@@ -274,6 +274,28 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }));
 
         setParticipants([you, ...others]);
+
+        // Proactively connect to all existing peers in the room
+        for (const peer of others) {
+            try {
+                console.log(`[WebRTC] Proactively connecting to existing peer: ${peer.name} (${peer.id})`);
+                const pc = await createPeerConnection(peer.id);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                sendWs({
+                    v: WS_PROTOCOL_VERSION,
+                    type: "webrtc/offer",
+                    payload: {
+                        roomId: payload.roomId,
+                        toUserId: peer.id,
+                        sdp: offer,
+                    },
+                });
+            } catch (e) {
+                console.error(`[WebRTC] Failed to connect to peer ${peer.id}:`, e);
+            }
+        }
     };
 
     const handlePeerJoined = async (payload: { roomId: string; peer: ClientInfo }) => {
@@ -471,19 +493,25 @@ export function RoomProvider({ children }: RoomProviderProps) {
             setScreenStream(null);
             setIsScreenSharing(false);
 
-            // Revert audio track if mixed
-            if (localStream) {
-                const originalAudioTrack = localStream.getAudioTracks()[0];
-                const videoTrack = localStream.getVideoTracks()[0];
+            // Revert video track to camera
+            if (localStreamRef.current) {
+                const cameraTrack = localStreamRef.current.getVideoTracks()[0];
 
                 pcsRef.current.forEach(pc => {
-                    // Revert video
+                    // Revert video sender to camera
                     const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
-                    if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+                    if (videoSender && cameraTrack) {
+                        videoSender.replaceTrack(cameraTrack);
+                    }
 
-                    // Revert audio
-                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
-                    if (audioSender && originalAudioTrack) audioSender.replaceTrack(originalAudioTrack);
+                    // Remove extra audio senders (screen audio) — keep only the first audio sender (mic)
+                    const audioSenders = pc.getSenders().filter(s => s.track?.kind === "audio");
+                    if (audioSenders.length > 1) {
+                        // Remove the extra ones (screen audio tracks we added)
+                        for (let i = 1; i < audioSenders.length; i++) {
+                            try { pc.removeTrack(audioSenders[i]); } catch (e) { /* ignore */ }
+                        }
+                    }
                 });
             }
 
@@ -491,7 +519,6 @@ export function RoomProvider({ children }: RoomProviderProps) {
         } else {
             // Start Screen Share
             try {
-                // 1. Get Screen Stream (with System Audio if possible)
                 const displayStream = await navigator.mediaDevices.getDisplayMedia({
                     video: true,
                     audio: true // Request system audio
@@ -507,49 +534,27 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 const screenVideoTrack = displayStream.getVideoTracks()[0];
                 const screenAudioTrack = displayStream.getAudioTracks()[0];
 
-                // 2. Audio Mixing Logic
-                let mixedAudioTrack: MediaStreamTrack | null = null;
-
-                if (screenAudioTrack && localStream) {
-                    const micTrack = localStream.getAudioTracks()[0];
-                    if (micTrack) {
-                        try {
-                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-                            const destination = audioCtx.createMediaStreamDestination();
-
-                            const micSource = audioCtx.createMediaStreamSource(new MediaStream([micTrack]));
-                            const sysSource = audioCtx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
-
-                            micSource.connect(destination);
-                            sysSource.connect(destination);
-
-                            mixedAudioTrack = destination.stream.getAudioTracks()[0];
-                        } catch (err) {
-                            console.error("Error mixing audio:", err);
-                        }
-                    }
-                }
-
-                // Fallback: if mixing failed or no system audio, just keep using mic track (or switch to system if preferred? No, keep mic)
-                // Actually if system audio exists but no mixing, maybe we should just send system? 
-                // Better default: If we can't mix, usually we just send mic as primary comms.
-                // But let's assume mixing works or we default to separate tracks (WebRTC usually one audio track per stream unless multi-stream).
-                // We will stick to replacing the SINGLE audio track on the PC.
-
-                const audioTrackReplacing = mixedAudioTrack || (localStream?.getAudioTracks()[0]);
-
-                // 3. Update PeerConnections
+                // Update PeerConnections
                 pcsRef.current.forEach(pc => {
-                    // Replace Video
+                    // Replace video with screen video
                     const videoSender = pc.getSenders().find(s => s.track?.kind === "video");
                     if (videoSender) {
                         videoSender.replaceTrack(screenVideoTrack);
                     }
 
-                    // Replace Audio (with mixed or original)
-                    const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
-                    if (audioSender && audioTrackReplacing) {
-                        audioSender.replaceTrack(audioTrackReplacing);
+                    // Add screen audio as a separate track (mic stays as-is)
+                    if (screenAudioTrack) {
+                        try {
+                            pc.addTrack(screenAudioTrack, displayStream);
+                            console.log("[ScreenShare] Added screen audio track to PC");
+                        } catch (e) {
+                            console.warn("[ScreenShare] Could not add screen audio track:", e);
+                            // Fallback: replace the existing audio sender with screen audio
+                            const audioSender = pc.getSenders().find(s => s.track?.kind === "audio");
+                            if (audioSender) {
+                                audioSender.replaceTrack(screenAudioTrack);
+                            }
+                        }
                     }
                 });
 
