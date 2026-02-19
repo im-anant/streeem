@@ -13,7 +13,7 @@ import { useRoom } from "@/contexts/RoomContext";
 import { VideoCard } from "@/components/VideoCard";
 import { ChatWidget } from "@/components/ChatWidget";
 import { ReactionPanel } from "@/components/ReactionPanel";
-import { ReactionCanvas } from "@/components/ReactionCanvas";
+import { TileReactionCanvasHandle } from "@/components/TileReactionCanvas";
 import { useGestureDetection, type GestureEvent } from "@/hooks/useGestureDetection";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -59,8 +59,25 @@ export default function RoomPage() {
         if (node) setGestureVideoEl(node);
     }, []);
 
-    // Canvas reactions state
-    const [canvasReactions, setCanvasReactions] = useState<GestureEvent[]>([]);
+    // Per-tile canvas refs — keyed by participant ID
+    const canvasRefsMap = useRef<Map<string, React.RefObject<TileReactionCanvasHandle | null>>>(new Map());
+
+    // Get or create a ref for a participant
+    const getCanvasRef = useCallback((id: string) => {
+        if (!canvasRefsMap.current.has(id)) {
+            canvasRefsMap.current.set(id, { current: null } as React.RefObject<TileReactionCanvasHandle | null>);
+        }
+        return canvasRefsMap.current.get(id)!;
+    }, []);
+
+    // Build map for current participants
+    const canvasRefs = useMemo(() => {
+        const map = new Map<string, React.RefObject<TileReactionCanvasHandle | null>>();
+        for (const p of participants) {
+            map.set(p.id, getCanvasRef(p.id));
+        }
+        return map;
+    }, [participants, getCanvasRef]);
 
     // Feed localStream into the hidden video element
     useEffect(() => {
@@ -70,11 +87,15 @@ export default function RoomPage() {
         }
     }, [localStream, gestureVideoEl]);
 
-    // Gesture detection hook — fires GestureEvent with origin
+    // Gesture detection hook — route to local user's tile canvas
     const handleGesture = useCallback((event: GestureEvent) => {
         sendReaction(event.gesture);
-        setCanvasReactions(prev => [...prev, event]);
-    }, [sendReaction]);
+        // Play on local user's tile canvas
+        if (localUser) {
+            const ref = getCanvasRef(localUser.id);
+            ref.current?.playReaction(event.gesture as any, event.origin.x, event.origin.y);
+        }
+    }, [sendReaction, localUser, getCanvasRef]);
 
     const { isSupported: gestureSupported, isRunning: gestureRunning } = useGestureDetection({
         videoElement: gestureVideoEl,
@@ -83,15 +104,14 @@ export default function RoomPage() {
         onGesture: handleGesture,
     });
 
-    // Convert incoming broadcast reactions to GestureEvents for canvas
+    // Route incoming broadcast reactions to correct participant's tile canvas
     useEffect(() => {
         if (incomingReactions.length > 0) {
             const latest = incomingReactions[incomingReactions.length - 1];
-            const gestureEvent: GestureEvent = {
-                gesture: latest.reaction as any,
-                origin: { x: 0.5, y: 0.5 }, // center for remote reactions
-            };
-            setCanvasReactions(prev => [...prev, gestureEvent]);
+            const ref = canvasRefsMap.current.get(latest.userId);
+            if (ref?.current) {
+                ref.current.playReaction(latest.reaction as any);
+            }
         }
     }, [incomingReactions]);
 
@@ -317,14 +337,14 @@ export default function RoomPage() {
                                         </div>
                                     ) : (
                                         // Grid
-                                        <VideoGrid participants={gridParticipants} />
+                                        <VideoGrid participants={gridParticipants} canvasRefs={canvasRefs} />
                                     )}
                                 </div>
 
                                 {/* Local Video: Floating Bottom-Right (Only if NOT large group) */}
                                 {showFloatingSelf && localUser && (
                                     <div className="absolute bottom-6 right-6 w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
-                                        <VideoCard participant={localUser} className="w-full h-full object-cover" />
+                                        <VideoCard participant={localUser} className="w-full h-full object-cover" canvasRef={getCanvasRef(localUser.id)} />
                                         {/* Overlay Name */}
                                         <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white font-medium group-hover:opacity-100 opacity-0 transition-opacity">
                                             You
@@ -356,16 +376,14 @@ export default function RoomPage() {
                 onClose={() => setIsReactionPanelOpen(false)}
                 onReact={(reaction) => {
                     sendReaction(reaction);
-                    setCanvasReactions(prev => [...prev, {
-                        gesture: reaction as any,
-                        origin: { x: 0.5, y: 0.5 },
-                    }]);
+                    // Play on local user's tile
+                    if (localUser) {
+                        const ref = getCanvasRef(localUser.id);
+                        ref.current?.playReaction(reaction as any);
+                    }
                     setIsReactionPanelOpen(false);
                 }}
             />
-
-            {/* Canvas Animation Overlay */}
-            <ReactionCanvas reactions={canvasReactions} />
 
             {/* Sidebar (Participants only) */}
             <Sidebar
@@ -402,7 +420,7 @@ export default function RoomPage() {
                     style={{
                         position: "absolute",
                         top: 16,
-                        right: 16,
+                        left: 16,
                         zIndex: 80,
                         display: "flex",
                         alignItems: "center",

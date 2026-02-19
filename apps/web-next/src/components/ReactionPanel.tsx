@@ -10,11 +10,10 @@ interface ReactionPanelProps {
 }
 
 const REACTIONS = [
+    { emoji: "❤️", label: "hearts", name: "Hearts" },
     { emoji: "🎈", label: "balloons", name: "Balloons" },
     { emoji: "🎊", label: "confetti", name: "Confetti" },
-    { emoji: "⚡", label: "laser", name: "Laser" },
     { emoji: "🎆", label: "firecracker", name: "Firecracker" },
-    { emoji: "🌧️", label: "rain", name: "Rain" },
 ];
 
 const COOLDOWN_MS = 3000;
