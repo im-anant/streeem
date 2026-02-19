@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Share2, Copy } from "lucide-react";
 import Link from "next/link";
@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { StreamInputModal } from "@/components/StreamInputModal";
 import { useRoom } from "@/contexts/RoomContext";
+import { VideoCard } from "@/components/VideoCard";
 
 export default function RoomPage() {
     const params = useParams();
@@ -23,9 +24,6 @@ export default function RoomPage() {
         joinRoom,
         setStreamUrl,
         toggleScreenShare,
-        toggleMute,
-        toggleVideo,
-        leaveRoom,
         mediaError,
         roomError
     } = useRoom();
@@ -33,13 +31,25 @@ export default function RoomPage() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
 
-    // Computed active view
-    const remoteScreenShare = participants.find(p => p.isScreenSharing && !p.isLocal);
-    const showSpotlight = activeStreamUrl || isScreenSharing || !!remoteScreenShare;
+    // --- State Logic ---
 
-    // Handle immediate join for demo if localUser is missing but we are on this page?
-    // Actually, let's show a "Pre-Join" screen if !localUser
+    // 1. Identify if anyone involves screen sharing
+    // Remote participants who are screen sharing
+    const remoteScreenShare = useMemo(() => {
+        return participants.find(p => p.isScreenSharing && !p.isLocal);
+    }, [participants]);
 
+    // Active Screen Share: Remote OR Local
+    const activeScreenSharer = remoteScreenShare || (localUser?.isScreenSharing ? localUser : null);
+
+    // 2. Determine Layout Mode
+    // Mode: "content" (Screen Share or Watch Party) vs "normal" (Video Call)
+    const isContentMode = !!activeStreamUrl || !!activeScreenSharer;
+
+    // --- Computed Groups ---
+    const remoteParticipants = useMemo(() => participants.filter(p => !p.isLocal), [participants]);
+
+    // Handle Join Screen
     if (!localUser) {
         return (
             <div className="flex h-dvh w-full items-center justify-center bg-zinc-950">
@@ -84,142 +94,155 @@ export default function RoomPage() {
     }
 
     return (
-        <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 flex">
-            {/* Main Stage */}
-            <div className="flex-1 flex flex-col h-full relative transition-all duration-300">
-                {mediaError && (
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg backdrop-blur flex items-center gap-2">
-                        <span>⚠️ {mediaError}</span>
-                    </div>
-                )}
-
-                {/* Always-visible Share Bar */}
-                <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
-                    <button
-                        onClick={() => {
-                            navigator.clipboard.writeText(window.location.href);
-                        }}
-                        className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
-                        title="Copy Room Link"
-                    >
-                        <Share2 className="w-3 h-3" />
-                        <span className="font-medium">Share Link</span>
-                    </button>
-                    <button
-                        onClick={() => {
-                            navigator.clipboard.writeText(roomId);
-                        }}
-                        className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-white/10 transition-colors"
-                        title="Copy Room Code"
-                    >
-                        <Copy className="w-3 h-3" />
-                        <span className="font-medium">Code: {roomId}</span>
-                    </button>
+        <main className="relative h-dvh w-full overflow-hidden bg-black text-white">
+            {mediaError && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg backdrop-blur flex items-center gap-2">
+                    <span>⚠️ {mediaError}</span>
                 </div>
-                {/* Stream / Spotlight Area */}
-                {showSpotlight ? (
-                    <div className="flex-1 p-4 flex flex-col gap-4">
-                        {/* Cinema Mode Player */}
-                        <div className="flex-1 rounded-2xl overflow-hidden shadow-2xl bg-black relative group my-auto max-h-[85vh] ring-1 ring-white/10">
-                            {activeStreamUrl ? (
-                                <VideoPlayer />
-                            ) : isScreenSharing ? (
-                                // Local Screen Share
-                                <div className="w-full h-full bg-zinc-900 flex items-center justify-center relative overflow-hidden">
-                                    {screenStream ? (
-                                        <video
-                                            autoPlay
-                                            playsInline
-                                            muted
-                                            ref={(v) => { if (v) v.srcObject = screenStream }}
-                                            className="w-full h-full object-contain"
-                                        />
-                                    ) : (
-                                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-zinc-900 to-zinc-950 flex flex-col items-center justify-center space-y-4">
-                                            <div className="animate-spin w-12 h-12 border-2 border-indigo-500 border-t-transparent rounded-full" />
-                                            <p className="text-zinc-500">Initializing screen share...</p>
-                                        </div>
-                                    )}
+            )}
 
-                                    {/* Overlay for Stop Control */}
-                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-                                        <button onClick={toggleScreenShare} className="bg-red-500/90 text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-red-600 transition shadow-lg">
-                                            Stop Sharing
-                                        </button>
+            {/* Top Right: Share Info */}
+            <div className="absolute top-4 right-4 z-[60] flex items-center gap-2">
+                <button
+                    onClick={() => navigator.clipboard.writeText(window.location.href)}
+                    className="bg-zinc-800/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-zinc-700 transition-colors"
+                >
+                    <Share2 className="w-3 h-3" />
+                    <span className="font-medium hidden sm:inline">Share Link</span>
+                </button>
+                <button
+                    onClick={() => navigator.clipboard.writeText(roomId)}
+                    className="bg-zinc-800/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-zinc-700 transition-colors"
+                >
+                    <Copy className="w-3 h-3" />
+                    <span className="font-medium hidden sm:inline">Code: {roomId}</span>
+                </button>
+            </div>
+
+            {/* --- LAYOUT RENDERING --- */}
+            {isContentMode ? (
+                // ===============
+                // CONTENT MODE (Screen Share OR Watch Party)
+                // ===============
+                <div className="flex flex-col h-full w-full">
+                    {/* Main Stage */}
+                    <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-zinc-950 p-4 pb-[140px]">
+
+                        {activeStreamUrl && (
+                            // Watch Party Player
+                            <div className="w-full h-full max-w-6xl flex items-center justify-center">
+                                <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 relative bg-black">
+                                    <VideoPlayer />
+                                    <div className="absolute top-4 right-4 bg-red-600 px-3 py-1 rounded-full text-xs font-bold text-white shadow animate-pulse">
+                                        LIVE PARTY
                                     </div>
                                 </div>
-                            ) : remoteScreenShare ? (
-                                // Remote Screen Share
-                                <div className="w-full h-full bg-zinc-900 flex items-center justify-center relative overflow-hidden">
+                            </div>
+                        )}
+
+                        {!activeStreamUrl && activeScreenSharer && (
+                            // Screen Share View
+                            <div className="w-full h-full flex items-center justify-center relative">
+                                <div className="relative w-full h-full max-w-[90%] max-h-[85vh] flex items-center justify-center">
                                     <video
                                         autoPlay
                                         playsInline
-                                        // muted // Don't mute remote screen share usually? But usually it has no audio unless system audio shared.
+                                        // Muted if local share or remote (usually we don't want echoes, but check audio rules)
+                                        muted={true}
                                         ref={(v) => {
-                                            if (v && remoteScreenShare.stream) {
-                                                v.srcObject = remoteScreenShare.stream;
+                                            if (v) {
+                                                if (activeScreenSharer.isLocal && screenStream) {
+                                                    v.srcObject = screenStream;
+                                                } else if (!activeScreenSharer.isLocal && activeScreenSharer.stream) {
+                                                    v.srcObject = activeScreenSharer.stream;
+                                                }
                                             }
                                         }}
                                         className="w-full h-full object-contain"
                                     />
-                                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full text-xs text-white border border-white/10">
-                                        {remoteScreenShare.name}'s Screen
-                                    </div>
-                                </div>
-                            ) : null}
 
-                            <div className="absolute top-4 right-4 flex items-center gap-2">
-                                <div className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                                    {activeStreamUrl ? "Synced Watch Party" : "Live Screen Share"}
-                                </div>
-                            </div>
-                        </div>
-                        {/* Filmstrip for participants */}
-                        <div className="h-40 flex gap-4 overflow-x-auto pb-4 shrink-0 mt-auto w-full px-2 mask-linear-fade">
-                            {participants.map(p => (
-                                <div key={p.id} className="min-w-[200px] h-full rounded-xl bg-zinc-900 border border-zinc-800 relative overflow-hidden group shadow-lg ring-1 ring-white/5">
-                                    {p.stream ? (
-                                        <video
-                                            autoPlay
-                                            playsInline
-                                            muted={p.isLocal}
-                                            ref={(v) => {
-                                                if (v) v.srcObject = p.stream!;
-                                            }}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
-                                            <span className="text-zinc-500 text-sm font-medium">No Video</span>
+                                    {/* Label */}
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-4 py-2 rounded-full text-sm text-white font-medium border border-white/10">
+                                        {activeScreenSharer.isLocal ? "You are sharing your screen" : `${activeScreenSharer.name}'s Screen`}
+                                    </div>
+
+                                    {/* Local Stop Button */}
+                                    {activeScreenSharer.isLocal && (
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={toggleScreenShare}
+                                                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold shadow-2xl scale-110"
+                                            >
+                                                Stop Sharing
+                                            </button>
                                         </div>
                                     )}
-                                    <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                                        <div className="flex items-center gap-2">
-                                            <div className="bg-white/10 backdrop-blur rounded-full px-2 py-0.5 text-[10px] font-medium text-white ring-1 ring-white/10">
-                                                {p.name} {p.isLocal && "(You)"}
-                                            </div>
-                                            {/* Audio status indicator could go here */}
-                                        </div>
-                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    /* Grid Mode */
-                    <VideoGrid participants={participants} />
-                )}
 
-                {/* Floating Controls */}
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-auto max-w-full px-4">
-                    <ControlBar
-                        onStartStream={() => setStreamModalOpen(true)}
-                        onToggleChat={() => setSidebarOpen(!sidebarOpen)}
-                        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-                        sidebarOpen={sidebarOpen}
-                    />
+                    {/* Bottom Filmstrip */}
+                    <div className="absolute bottom-0 left-0 w-full h-[120px] bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center gap-3 px-4 overflow-x-auto border-t border-white/10">
+                        {participants.map(p => (
+                            <div key={p.id} className="h-[100px] w-[160px] shrink-0 relative rounded-lg overflow-hidden border border-white/10 bg-zinc-900 group">
+                                <VideoCard participant={p} className="w-full h-full object-cover" />
+                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/80 to-transparent">
+                                    <p className="text-[10px] font-medium text-white truncate px-1">
+                                        {p.name} {p.isLocal && "(You)"}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+            ) : (
+                // ===============
+                // NORMAL MODE (Grid + Floating)
+                // ===============
+                <div className="w-full h-full relative">
+                    {/* Main Stage: Remote Participants */}
+                    <div className="w-full h-full flex items-center justify-center p-4 pb-24">
+                        {/* pb-24 to ensure controls don't overlap too much if grid is full */}
+                        {remoteParticipants.length === 0 ? (
+                            // Waiting State
+                            <div className="flex flex-col items-center justify-center text-zinc-500 space-y-4">
+                                <div className="w-24 h-24 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center relative">
+                                    <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping"></div>
+                                    <span className="text-4xl relative z-10">👋</span>
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-xl font-medium text-white">Waiting for others</h3>
+                                    <p className="text-sm mt-1 text-zinc-400">Share the room link to invite people</p>
+                                </div>
+                            </div>
+                        ) : (
+                            // Remote Grid
+                            <VideoGrid participants={remoteParticipants} />
+                        )}
+                    </div>
+
+                    {/* Local Video: Floating Bottom-Right */}
+                    {localUser && (
+                        <div className="absolute bottom-6 right-6 w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
+                            <VideoCard participant={localUser} className="w-full h-full object-cover" />
+                            {/* Overlay Name */}
+                            <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white font-medium group-hover:opacity-100 opacity-0 transition-opacity">
+                                You
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Global Controls Overlay */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] w-auto max-w-full px-4">
+                <ControlBar
+                    onStartStream={() => setStreamModalOpen(true)}
+                    onToggleChat={() => setSidebarOpen(!sidebarOpen)}
+                    onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+                    sidebarOpen={sidebarOpen}
+                />
             </div>
 
             {/* Sidebar */}

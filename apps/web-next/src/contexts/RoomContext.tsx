@@ -472,7 +472,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     }, [sendWs]);
 
     const toggleScreenShare = useCallback(async () => {
-        if (!localUserRef.current) return;
+        if (!localUserRef.current || !currentRoomId.current) return;
 
         if (isScreenSharing) {
             // Stop Screen Share
@@ -504,6 +504,17 @@ export function RoomProvider({ children }: RoomProviderProps) {
             }
 
             setLocalUser((prev: Participant | null) => prev ? { ...prev, isScreenSharing: false } : null);
+
+            // Broadcast stop share
+            sendWs({
+                v: WS_PROTOCOL_VERSION,
+                type: "user/update",
+                payload: {
+                    roomId: currentRoomId.current,
+                    state: { isScreenSharing: false }
+                }
+            });
+
         } else {
             // Start Screen Share
             try {
@@ -557,11 +568,21 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 });
 
                 setLocalUser((prev: Participant | null) => prev ? { ...prev, isScreenSharing: true } : null);
+
+                // Broadcast start share
+                sendWs({
+                    v: WS_PROTOCOL_VERSION,
+                    type: "user/update",
+                    payload: {
+                        roomId: currentRoomId.current,
+                        state: { isScreenSharing: true }
+                    }
+                });
             } catch (e) {
                 console.error("Error starting screen share", e);
             }
         }
-    }, [isScreenSharing, localStream, screenStream]);
+    }, [isScreenSharing, localStream, screenStream, sendWs]);
 
     const toggleMute = useCallback(() => {
         if (!localStream) return;
