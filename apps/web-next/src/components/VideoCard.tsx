@@ -2,16 +2,18 @@ import { Participant } from "@/types";
 import { Mic, MicOff, User } from "lucide-react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { TileReactionCanvas, TileReactionCanvasHandle } from "./TileReactionCanvas";
 
 interface VideoCardProps {
     participant: Participant;
     className?: string;
+    canvasRef?: React.Ref<TileReactionCanvasHandle | null>;
 }
 
 import { useEffect, useRef } from "react";
 import { useRoom } from "@/contexts/RoomContext";
 
-export function VideoCard({ participant, className }: VideoCardProps) {
+export function VideoCard({ participant, className, canvasRef }: VideoCardProps) {
     const { localStream } = useRoom();
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -76,6 +78,9 @@ export function VideoCard({ participant, className }: VideoCardProps) {
                     </div>
                 )}
             </div>
+
+            {/* Per-tile reaction canvas overlay */}
+            <TileReactionCanvas ref={canvasRef as any} />
 
             {/* Overlay Info */}
             <div className="absolute bottom-3 left-3 flex items-center gap-2 max-w-[80%]">

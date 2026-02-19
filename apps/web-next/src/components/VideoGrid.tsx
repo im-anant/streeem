@@ -1,12 +1,14 @@
 import { Participant } from "@/types";
 import { VideoCard } from "@/components/VideoCard";
 import { clsx } from "clsx";
+import { TileReactionCanvasHandle } from "./TileReactionCanvas";
 
 interface VideoGridProps {
   participants: Participant[];
+  canvasRefs?: Map<string, React.RefObject<TileReactionCanvasHandle | null>>;
 }
 
-export function VideoGrid({ participants }: VideoGridProps) {
+export function VideoGrid({ participants, canvasRefs }: VideoGridProps) {
   return (
     <div className="h-full w-full p-4 flex items-center justify-center overflow-y-auto">
       <div
@@ -20,6 +22,7 @@ export function VideoGrid({ participants }: VideoGridProps) {
             key={p.id}
             participant={p}
             className="w-full h-full min-h-[200px]"
+            canvasRef={canvasRefs?.get(p.id)}
           />
         ))}
       </div>

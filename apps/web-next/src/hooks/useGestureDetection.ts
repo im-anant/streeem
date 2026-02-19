@@ -8,12 +8,11 @@ import { useEffect, useRef, useState } from "react";
 // Fire-once, reset gate, hand-anchored origin
 // ============================================================
 
-export type GestureLabel = "balloons" | "confetti" | "laser" | "firecracker" | "rain";
+export type GestureLabel = "hearts" | "balloons" | "confetti" | "firecracker";
 
 export interface GestureEvent {
     gesture: GestureLabel;
     origin: { x: number; y: number }; // normalized 0-1 coords
-    landmarks?: any; // raw landmarks for laser fingertips
 }
 
 interface UseGestureDetectionProps {
@@ -82,9 +81,9 @@ function classify(hands: Hand[]): ClassifyResult | null {
     if (hands.length >= 2) {
         const h1 = hands[0], h2 = hands[1];
 
-        // RAIN (heart shape) — thumb+index tips proximity
+        // HEARTS (heart shape) — thumb+index tips proximity
         if (dist(h1[THUMB_TIP], h2[THUMB_TIP]) < 0.08 && dist(h1[INDEX_TIP], h2[INDEX_TIP]) < 0.08) {
-            return { label: "rain", origin: midpoint(palmCenter(h1), palmCenter(h2)) };
+            return { label: "hearts", origin: midpoint(palmCenter(h1), palmCenter(h2)) };
         }
 
         // BALLOONS (two thumbs up)
@@ -110,15 +109,7 @@ function classify(hands: Hand[]): ClassifyResult | null {
     // One-hand gestures
     const h = hands[0];
 
-    // LASER (peace sign)
-    if (ext(h, INDEX_TIP, INDEX_MCP) && ext(h, MIDDLE_TIP, MIDDLE_MCP) &&
-        curl(h, RING_TIP, RING_PIP) && curl(h, PINKY_TIP, PINKY_PIP)) {
-        return {
-            label: "laser",
-            origin: midpoint(h[INDEX_TIP], h[MIDDLE_TIP]),
-            landmarks: { indexTip: h[INDEX_TIP], middleTip: h[MIDDLE_TIP] },
-        };
-    }
+    // Peace sign — UNMAPPED (laser removed in v4)
 
     // FIRECRACKER (rock on)
     if (ext(h, INDEX_TIP, INDEX_MCP) && ext(h, PINKY_TIP, PINKY_MCP) &&
@@ -259,7 +250,6 @@ export function useGestureDetection({
                             onGestureRef.current({
                                 gesture: activeResult!.label,
                                 origin: activeResult!.origin,
-                                landmarks: activeResult!.landmarks,
                             });
                             // After firing, wait for hand to leave → cooldown
                             // Auto-transition after a timeout in case hand stays
