@@ -73,6 +73,10 @@ export type C2S = WsEnvelope<"room/join", {
         isSpeaking: boolean;
         isScreenSharing: boolean;
     }>;
+}> | WsEnvelope<"reaction/send", {
+    roomId: RoomId;
+    reaction: string;
+    source: "gesture" | "ui";
 }>;
 /**
  * Server -> Client events
@@ -135,6 +139,13 @@ export type S2C = WsEnvelope<"server/hello", {
     message: string;
 }> | WsEnvelope<"ack", {
     requestId: string;
+}> | WsEnvelope<"reaction/received", {
+    roomId: RoomId;
+    userId: UserId;
+    displayName: string;
+    reaction: string;
+    source: "gesture" | "ui";
+    tsMs: number;
 }>;
 export declare function isClientEvent(msg: unknown): msg is C2S;
 //# sourceMappingURL=events.d.ts.map

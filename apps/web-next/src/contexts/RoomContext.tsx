@@ -12,6 +12,15 @@ interface ChatMessage {
     isSystem: boolean;
 }
 
+export interface IncomingReaction {
+    id: string;
+    userId: string;
+    displayName: string;
+    reaction: string;
+    source: "gesture" | "ui";
+    tsMs: number;
+}
+
 interface RoomContextType {
     participants: Participant[];
     localUser: Participant | null;
@@ -31,6 +40,8 @@ interface RoomContextType {
     switchCamera: () => Promise<void>;
     setPlayback: (state: "playing" | "paused", time: number) => void;
     sendMessage: (text: string) => void;
+    sendReaction: (reaction: string) => void;
+    incomingReactions: IncomingReaction[];
     mediaError: string | null;
     roomError: string | null;
 }
@@ -160,6 +171,23 @@ export function RoomProvider({ children }: RoomProviderProps) {
                     setPlaybackState(msg.payload.state.playing ? "playing" : "paused");
                     setCurrentTime(msg.payload.state.positionSec);
                     break;
+                case "reaction/received": {
+                    const r = msg.payload as any;
+                    const incoming: IncomingReaction = {
+                        id: `${r.userId}-${r.tsMs}-${Math.random()}`,
+                        userId: r.userId,
+                        displayName: r.displayName,
+                        reaction: r.reaction,
+                        source: r.source,
+                        tsMs: r.tsMs,
+                    };
+                    setIncomingReactions(prev => [...prev, incoming]);
+                    // Auto-remove after 4 seconds
+                    setTimeout(() => {
+                        setIncomingReactions(prev => prev.filter(x => x.id !== incoming.id));
+                    }, 4000);
+                    break;
+                }
             }
         };
 
@@ -703,6 +731,21 @@ export function RoomProvider({ children }: RoomProviderProps) {
         });
     }, [sendWs]);
 
+    const [incomingReactions, setIncomingReactions] = useState<IncomingReaction[]>([]);
+
+    const sendReaction = useCallback((reaction: string) => {
+        if (!currentRoomId.current) return;
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "reaction/send",
+            payload: {
+                roomId: currentRoomId.current,
+                reaction,
+                source: "ui",
+            },
+        });
+    }, [sendWs]);
+
     const value: RoomContextType = {
         participants,
         localUser,
@@ -722,6 +765,8 @@ export function RoomProvider({ children }: RoomProviderProps) {
         switchCamera,
         setPlayback,
         sendMessage,
+        sendReaction,
+        incomingReactions,
         mediaError,
         roomError,
     };

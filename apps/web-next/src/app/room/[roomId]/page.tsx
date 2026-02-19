@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Share2, Copy } from "lucide-react";
 import Link from "next/link";
@@ -11,6 +11,16 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import { StreamInputModal } from "@/components/StreamInputModal";
 import { useRoom } from "@/contexts/RoomContext";
 import { VideoCard } from "@/components/VideoCard";
+import { ChatWidget } from "@/components/ChatWidget";
+import { ReactionPanel } from "@/components/ReactionPanel";
+import { ReactionCanvas } from "@/components/ReactionCanvas";
+import { useGestureDetection, type GestureEvent } from "@/hooks/useGestureDetection";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: (string | undefined | null | false)[]) {
+    return twMerge(clsx(inputs));
+}
 
 export default function RoomPage() {
     const params = useParams();
@@ -24,12 +34,81 @@ export default function RoomPage() {
         joinRoom,
         setStreamUrl,
         toggleScreenShare,
+        sendReaction,
+        incomingReactions,
+        localStream,
         mediaError,
         roomError
     } = useRoom();
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isReactionPanelOpen, setIsReactionPanelOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
+    const [gestureEnabled, setGestureEnabled] = useState(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("streeem_gesture_enabled") !== "false";
+        }
+        return true;
+    });
+    const [showGestureTooltip, setShowGestureTooltip] = useState(false);
+
+    // Hidden video element for gesture detection — use callback ref
+    const [gestureVideoEl, setGestureVideoEl] = useState<HTMLVideoElement | null>(null);
+    const gestureVideoRefCb = useCallback((node: HTMLVideoElement | null) => {
+        if (node) setGestureVideoEl(node);
+    }, []);
+
+    // Canvas reactions state
+    const [canvasReactions, setCanvasReactions] = useState<GestureEvent[]>([]);
+
+    // Feed localStream into the hidden video element
+    useEffect(() => {
+        if (gestureVideoEl && localStream) {
+            gestureVideoEl.srcObject = localStream;
+            gestureVideoEl.play().catch(() => { });
+        }
+    }, [localStream, gestureVideoEl]);
+
+    // Gesture detection hook — fires GestureEvent with origin
+    const handleGesture = useCallback((event: GestureEvent) => {
+        sendReaction(event.gesture);
+        setCanvasReactions(prev => [...prev, event]);
+    }, [sendReaction]);
+
+    const { isSupported: gestureSupported, isRunning: gestureRunning } = useGestureDetection({
+        videoElement: gestureVideoEl,
+        enabled: gestureEnabled,
+        hasVideo: !!localUser?.hasVideo,
+        onGesture: handleGesture,
+    });
+
+    // Convert incoming broadcast reactions to GestureEvents for canvas
+    useEffect(() => {
+        if (incomingReactions.length > 0) {
+            const latest = incomingReactions[incomingReactions.length - 1];
+            const gestureEvent: GestureEvent = {
+                gesture: latest.reaction as any,
+                origin: { x: 0.5, y: 0.5 }, // center for remote reactions
+            };
+            setCanvasReactions(prev => [...prev, gestureEvent]);
+        }
+    }, [incomingReactions]);
+
+    // Show privacy tooltip on first use
+    useEffect(() => {
+        if (gestureRunning && !localStorage.getItem("streeem_gesture_tooltip_shown")) {
+            setShowGestureTooltip(true);
+            localStorage.setItem("streeem_gesture_tooltip_shown", "true");
+            const timer = setTimeout(() => setShowGestureTooltip(false), 6000);
+            return () => clearTimeout(timer);
+        }
+    }, [gestureRunning]);
+
+    // Persist gesture toggle
+    useEffect(() => {
+        localStorage.setItem("streeem_gesture_enabled", String(gestureEnabled));
+    }, [gestureEnabled]);
 
     // --- State Logic ---
 
@@ -201,37 +280,60 @@ export default function RoomPage() {
                 // NORMAL MODE (Grid + Floating)
                 // ===============
                 <div className="w-full h-full relative">
-                    {/* Main Stage: Remote Participants */}
-                    <div className="w-full h-full flex items-center justify-center p-4 pb-24">
-                        {/* pb-24 to ensure controls don't overlap too much if grid is full */}
-                        {remoteParticipants.length === 0 ? (
-                            // Waiting State
-                            <div className="flex flex-col items-center justify-center text-zinc-500 space-y-4">
-                                <div className="w-24 h-24 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center relative">
-                                    <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping"></div>
-                                    <span className="text-4xl relative z-10">👋</span>
-                                </div>
-                                <div className="text-center">
-                                    <h3 className="text-xl font-medium text-white">Waiting for others</h3>
-                                    <p className="text-sm mt-1 text-zinc-400">Share the room link to invite people</p>
-                                </div>
-                            </div>
-                        ) : (
-                            // Remote Grid
-                            <VideoGrid participants={remoteParticipants} />
-                        )}
-                    </div>
+                    {/* 
+                        Layout Logic:
+                        - Total Participants = Remote + Local (if exists)
+                        - If Total <= 3: Remote Grid + Floating Local
+                        - If Total >= 4: All Grid (Local included in grid), No Floating
+                     */}
 
-                    {/* Local Video: Floating Bottom-Right */}
-                    {localUser && (
-                        <div className="absolute bottom-6 right-6 w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
-                            <VideoCard participant={localUser} className="w-full h-full object-cover" />
-                            {/* Overlay Name */}
-                            <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white font-medium group-hover:opacity-100 opacity-0 transition-opacity">
-                                You
-                            </div>
-                        </div>
-                    )}
+                    {(() => {
+                        const totalCount = remoteParticipants.length + (localUser ? 1 : 0);
+                        const isLargeGroup = totalCount >= 4;
+
+                        // Participants to show in grid
+                        const gridParticipants = isLargeGroup
+                            ? (localUser ? [...remoteParticipants, localUser] : remoteParticipants)
+                            : remoteParticipants;
+
+                        // Show floating self?
+                        const showFloatingSelf = !isLargeGroup && !!localUser;
+
+                        return (
+                            <>
+                                {/* Main Grid Stage */}
+                                <div className={cn("w-full h-full flex items-center justify-center p-4", showFloatingSelf && "pb-24")}>
+                                    {gridParticipants.length === 0 && !localUser ? (
+                                        // Waiting State (No one in room)
+                                        <div className="flex flex-col items-center justify-center text-zinc-500 space-y-4">
+                                            <div className="w-24 h-24 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center relative">
+                                                <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping"></div>
+                                                <span className="text-4xl relative z-10">👋</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <h3 className="text-xl font-medium text-white">Waiting for others</h3>
+                                                <p className="text-sm mt-1 text-zinc-400">Share the room link to invite people</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        // Grid
+                                        <VideoGrid participants={gridParticipants} />
+                                    )}
+                                </div>
+
+                                {/* Local Video: Floating Bottom-Right (Only if NOT large group) */}
+                                {showFloatingSelf && localUser && (
+                                    <div className="absolute bottom-6 right-6 w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
+                                        <VideoCard participant={localUser} className="w-full h-full object-cover" />
+                                        {/* Overlay Name */}
+                                        <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white font-medium group-hover:opacity-100 opacity-0 transition-opacity">
+                                            You
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>
             )}
 
@@ -239,17 +341,43 @@ export default function RoomPage() {
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] w-auto max-w-full px-4">
                 <ControlBar
                     onStartStream={() => setStreamModalOpen(true)}
-                    onToggleChat={() => setSidebarOpen(!sidebarOpen)}
-                    onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+                    onToggleChat={() => setIsChatOpen((prev) => !prev)}
+                    onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+                    onToggleReactions={() => setIsReactionPanelOpen((prev) => !prev)}
                     sidebarOpen={sidebarOpen}
+                    chatOpen={isChatOpen}
+                    reactionsOpen={isReactionPanelOpen}
                 />
             </div>
 
-            {/* Sidebar */}
+            {/* Reaction Panel (floating above controls) */}
+            <ReactionPanel
+                isOpen={isReactionPanelOpen}
+                onClose={() => setIsReactionPanelOpen(false)}
+                onReact={(reaction) => {
+                    sendReaction(reaction);
+                    setCanvasReactions(prev => [...prev, {
+                        gesture: reaction as any,
+                        origin: { x: 0.5, y: 0.5 },
+                    }]);
+                    setIsReactionPanelOpen(false);
+                }}
+            />
+
+            {/* Canvas Animation Overlay */}
+            <ReactionCanvas reactions={canvasReactions} />
+
+            {/* Sidebar (Participants only) */}
             <Sidebar
                 open={sidebarOpen}
                 participants={participants}
                 onClose={() => setSidebarOpen(false)}
+            />
+
+            {/* Floating Chat Widget */}
+            <ChatWidget
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
             />
 
             {/* Modals */}
@@ -258,6 +386,97 @@ export default function RoomPage() {
                 onClose={() => setStreamModalOpen(false)}
                 onSubmit={(url) => setStreamUrl(url)}
             />
+
+            {/* Hidden video for gesture detection */}
+            <video
+                ref={gestureVideoRefCb}
+                autoPlay
+                playsInline
+                muted
+                style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", overflow: "hidden" }}
+            />
+
+            {/* Gesture detection status indicator */}
+            {gestureSupported && gestureEnabled && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 16,
+                        right: 16,
+                        zIndex: 80,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        background: "rgba(17,17,17,0.85)",
+                        borderRadius: 12,
+                        padding: "6px 12px",
+                        fontSize: 12,
+                        color: gestureRunning ? "#34d399" : "#fbbf24",
+                        border: `1px solid ${gestureRunning ? "rgba(52,211,153,0.2)" : "rgba(251,191,36,0.2)"}`,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background: gestureRunning ? "#34d399" : "#fbbf24",
+                            animation: gestureRunning ? "pulse 2s infinite" : "none",
+                        }}
+                    />
+                    {gestureRunning ? "✋ Gesture detection active" : "⏳ Loading gestures..."}
+                </div>
+            )}
+
+            {/* Privacy tooltip */}
+            {showGestureTooltip && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 56,
+                        right: 16,
+                        zIndex: 80,
+                        background: "rgba(30,30,30,0.95)",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        maxWidth: 300,
+                        fontSize: 13,
+                        color: "#d4d4d8",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+                        animation: "chatFadeIn 0.3s ease",
+                    }}
+                >
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: "#fff" }}>🔒 Private gesture detection</div>
+                    <div>Your camera is analyzed <strong>locally</strong> to detect hand gestures. Nothing is sent to our servers.</div>
+                    <button
+                        onClick={() => setShowGestureTooltip(false)}
+                        style={{
+                            marginTop: 8,
+                            background: "rgba(255,255,255,0.1)",
+                            border: "none",
+                            color: "#a1a1aa",
+                            padding: "4px 12px",
+                            borderRadius: 8,
+                            fontSize: 12,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Got it
+                    </button>
+                </div>
+            )}
+
+            <style jsx>{`
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.4; }
+                }
+                @keyframes chatFadeIn {
+                    from { opacity: 0; transform: translateY(-8px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
 
         </main>
     );

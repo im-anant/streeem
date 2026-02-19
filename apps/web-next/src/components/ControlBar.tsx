@@ -7,7 +7,9 @@ import {
   MessageSquare,
   PhoneOff,
   Play,
-  Camera
+  Camera,
+  Users,
+  Smile
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -17,16 +19,22 @@ export function ControlBar({
   onStartStream,
   onToggleChat,
   onToggleSidebar,
+  onToggleReactions,
   sidebarOpen,
+  chatOpen,
+  reactionsOpen,
 }: {
   onStartStream: () => void;
   onToggleChat: () => void;
   onToggleSidebar: () => void;
+  onToggleReactions: () => void;
   sidebarOpen: boolean;
+  chatOpen: boolean;
+  reactionsOpen: boolean;
 }) {
   const { localUser, toggleMute, toggleVideo, toggleScreenShare, isScreenSharing, leaveRoom, switchCamera } = useRoom();
 
-  // Guard: if no user, render nothing or disabled (though RoomPage handles this)
+  // Guard: if no user, render nothing or disabled
   if (!localUser) return null;
 
   const isMuted = !localUser.hasAudio;
@@ -59,7 +67,10 @@ export function ControlBar({
         icon={MonitorUp}
         active={isScreenSharing}
         title="Share Screen"
-        className="bg-neutral-800 hover:bg-neutral-700 hover:text-indigo-400"
+        className={clsx(
+          "bg-neutral-800 hover:bg-neutral-700",
+          isScreenSharing && "text-indigo-400"
+        )}
       />
       <ControlButton
         onClick={onStartStream}
@@ -70,13 +81,36 @@ export function ControlBar({
 
       <div className="w-px h-8 bg-white/10 mx-1" />
 
+      {/* Participants Button (Sidebar) */}
+      <ControlButton
+        onClick={onToggleSidebar}
+        icon={Users} // Change icon to Users
+        title="Participants"
+        className={clsx(
+          "bg-neutral-800 hover:bg-neutral-700",
+          sidebarOpen && "bg-indigo-500/20 text-indigo-300"
+        )}
+      />
+
+      {/* Chat Button (Floating Widget) */}
       <ControlButton
         onClick={onToggleChat}
         icon={MessageSquare}
         title="Chat"
         className={clsx(
           "bg-neutral-800 hover:bg-neutral-700",
-          sidebarOpen && "bg-indigo-500/20 text-indigo-300"
+          chatOpen && "bg-indigo-500/20 text-indigo-300"
+        )}
+      />
+
+      {/* Reactions Button */}
+      <ControlButton
+        onClick={onToggleReactions}
+        icon={Smile}
+        title="Reactions"
+        className={clsx(
+          "bg-neutral-800 hover:bg-neutral-700",
+          reactionsOpen && "bg-yellow-500/20 text-yellow-300"
         )}
       />
 
