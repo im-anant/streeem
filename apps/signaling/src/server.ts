@@ -313,8 +313,6 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // Update local state if we were tracking it on server (we aren't currently, but could)
-        // For now just broadcast
         broadcast(
           roomId,
           {
@@ -326,8 +324,34 @@ wss.on("connection", (ws) => {
               state
             }
           },
-          conn.user.userId // don't send back to sender? or maybe we should to confirm? usually no need.
+          conn.user.userId
         );
+        break;
+      }
+
+      case "reaction/send": {
+        if (!conn.user || !conn.roomId) {
+          send(ws, errorMsg(requestId, "not_in_room", "Join a room first"));
+          return;
+        }
+        const { roomId, reaction, source } = msg.payload;
+        if (roomId !== conn.roomId) {
+          send(ws, errorMsg(requestId, "not_in_room", "Not in that room"));
+          return;
+        }
+        // Broadcast to ALL participants (including sender so they see their own animation)
+        broadcast(roomId, {
+          v: WS_PROTOCOL_VERSION,
+          type: "reaction/received",
+          payload: {
+            roomId,
+            userId: conn.user.userId,
+            displayName: conn.user.displayName,
+            reaction,
+            source,
+            tsMs: Date.now()
+          }
+        });
         break;
       }
 

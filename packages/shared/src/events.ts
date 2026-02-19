@@ -114,6 +114,14 @@ export type C2S =
         isScreenSharing: boolean;
       }>;
     }
+  >
+  | WsEnvelope<
+    "reaction/send",
+    {
+      roomId: RoomId;
+      reaction: string;
+      source: "gesture" | "ui";
+    }
   >;
 
 /**
@@ -234,6 +242,17 @@ export type S2C =
     "ack",
     {
       requestId: string;
+    }
+  >
+  | WsEnvelope<
+    "reaction/received",
+    {
+      roomId: RoomId;
+      userId: UserId;
+      displayName: string;
+      reaction: string;
+      source: "gesture" | "ui";
+      tsMs: number;
     }
   >;
 
