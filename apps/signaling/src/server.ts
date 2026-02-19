@@ -1,4 +1,5 @@
 import { WebSocketServer } from "ws";
+import { createServer, IncomingMessage, ServerResponse } from "http";
 import {
   WS_PROTOCOL_VERSION,
   type C2S,
@@ -21,13 +22,65 @@ type Room = {
 
 const rooms = new Map<RoomId, Room>();
 
-function getOrCreateRoom(roomId: RoomId): Room {
-  const existing = rooms.get(roomId);
-  if (existing) return existing;
-  const created: Room = { connsByUserId: new Map() };
-  rooms.set(roomId, created);
-  return created;
+// Helper to enable CORS
+function setCorsHeaders(res: ServerResponse) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
+
+const port = Number(process.env.PORT ?? "8080");
+const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // POST /create-room
+  if (req.method === "POST" && req.url === "/create-room") {
+    const roomId = Math.random().toString(36).substring(2, 8);
+    // Create the room immediately
+    if (!rooms.has(roomId)) {
+      rooms.set(roomId, { connsByUserId: new Map() });
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ roomId }));
+    return;
+  }
+
+  // GET /room/:roomId -> Check if exists
+  // Simple regex to match /room/xyz
+  const match = req.url?.match(/^\/room\/([a-zA-Z0-9-]+)$/);
+  if (req.method === "GET" && match) {
+    const roomId = match[1];
+    if (rooms.has(roomId)) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ exists: true }));
+    } else {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Room not found" }));
+    }
+    return;
+  }
+
+  // 404 for anything else
+  if (req.url !== "/") { // Allow root for health check if needed, or just 404
+    res.writeHead(404);
+    res.end("Not Found");
+    return;
+  }
+
+  res.writeHead(200);
+  res.end("Signaling Server Running");
+});
+
+const wss = new WebSocketServer({ server });
+
+console.log(`[signaling] listening on http://localhost:${port}`);
 
 function send(ws: import("ws").WebSocket, msg: S2C) {
   ws.send(JSON.stringify(msg));
@@ -59,11 +112,6 @@ function ackMsg(requestId: string): S2C {
     payload: { requestId }
   };
 }
-
-const port = Number(process.env.PORT ?? "8080");
-const wss = new WebSocketServer({ port });
-
-console.log(`[signaling] listening on ws://localhost:${port}`);
 
 wss.on("connection", (ws) => {
   const conn: Conn = { ws };
@@ -97,7 +145,13 @@ wss.on("connection", (ws) => {
     switch (msg.type) {
       case "room/join": {
         const { roomId, client } = msg.payload;
-        const room = getOrCreateRoom(roomId);
+
+        // CRITICAL CHANGE: Only join if room exists
+        const room = rooms.get(roomId);
+        if (!room) {
+          send(ws, errorMsg(requestId, "room_not_found", "Room does not exist"));
+          return;
+        }
 
         // If reconnecting / duplicate, close previous
         const existing = room.connsByUserId.get(client.userId);
@@ -307,5 +361,7 @@ function leaveRoom(conn: Conn, roomId: RoomId) {
 
   conn.roomId = undefined;
 }
+
+server.listen(port);
 
 

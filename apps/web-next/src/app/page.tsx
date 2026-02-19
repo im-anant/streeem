@@ -10,12 +10,55 @@ export default function LandingPage() {
   const router = useRouter();
   const [roomName, setRoomName] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const getApiUrl = () => {
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
+    return wsUrl.replace("ws://", "http://").replace("wss://", "https://");
+  };
+
+  const handleCreate = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/create-room`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to create room");
+      const data = await res.json();
+      router.push(`/room/${data.roomId}`);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create room. Is the server running?");
+      setIsLoading(false);
+    }
+  };
+
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomName.trim()) return;
-    const cleanName = roomName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    router.push(`/room/${cleanName}`);
+
+    setIsLoading(true);
+    setError(null);
+    const cleanName = roomName.trim(); // We might want to keep case sensitivity or not, depending on backend. Backend is using what we send.
+    // Backend uses strict equality for map keys usually.
+
+    try {
+      const res = await fetch(`${getApiUrl()}/room/${cleanName}`);
+      if (res.status === 404) {
+        setError("Room does not exist.");
+        setIsLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        throw new Error("Network error");
+      }
+      // Room exists
+      router.push(`/room/${cleanName}`);
+    } catch (err) {
+      console.error(err);
+      setError("Could not connect to server.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -126,15 +169,19 @@ export default function LandingPage() {
           <div className="relative bg-zinc-900 border border-zinc-800 rounded-xl p-2 shadow-2xl space-y-3">
             {/* Create Button */}
             <button
-              onClick={() => {
-                const newId = Math.random().toString(36).substring(2, 8);
-                router.push(`/room/${newId}`);
-              }}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white p-3.5 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 group/btn"
+              onClick={handleCreate}
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white p-3.5 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 group/btn disabled:opacity-70 disabled:cursor-wait"
             >
-              <Zap className="w-5 h-5 fill-current" />
-              <span>Create Instant Room</span>
-              <ArrowRight className="w-4 h-4 ml-1 group-hover/btn:translate-x-1 transition-transform" />
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Zap className="w-5 h-5 fill-current" />
+                  <span>Create Instant Room</span>
+                  <ArrowRight className="w-4 h-4 ml-1 group-hover/btn:translate-x-1 transition-transform" />
+                </>
+              )}
             </button>
 
             <div className="relative flex items-center py-1">
@@ -144,26 +191,29 @@ export default function LandingPage() {
             </div>
 
             {/* Join Form */}
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!roomName.trim()) return;
-              router.push(`/room/${roomName.trim()}`);
-            }} className="flex items-center bg-zinc-950/50 border border-zinc-800/50 rounded-lg p-1 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all">
+            <form onSubmit={handleJoin} className="flex items-center bg-zinc-950/50 border border-zinc-800/50 rounded-lg p-1 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all">
               <span className="pl-3 text-zinc-500 select-none">#</span>
               <input
                 value={roomName}
                 onChange={(e) => setRoomName(e.target.value)}
                 placeholder="Enter room code"
-                className="flex-1 bg-transparent border-none text-white placeholder:text-zinc-600 focus:outline-none px-2 py-2 text-sm font-mono"
+                disabled={isLoading}
+                className="flex-1 bg-transparent border-none text-white placeholder:text-zinc-600 focus:outline-none px-2 py-2 text-sm font-mono disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={!roomName}
+                disabled={!roomName || isLoading}
                 className="bg-zinc-800 hover:bg-zinc-700 text-white p-2 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
+
+            {error && (
+              <div className="px-2 pb-1 text-center">
+                <p className="text-red-400 text-xs">{error}</p>
+              </div>
+            )}
           </div>
         </div>
 

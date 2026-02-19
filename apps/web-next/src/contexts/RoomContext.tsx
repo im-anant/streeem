@@ -32,6 +32,7 @@ interface RoomContextType {
     setPlayback: (state: "playing" | "paused", time: number) => void;
     sendMessage: (text: string) => void;
     mediaError: string | null;
+    roomError: string | null;
 }
 
 const RoomContext = createContext<RoomContextType | null>(null);
@@ -84,6 +85,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     const [currentTime, setCurrentTime] = useState(0);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [mediaError, setMediaError] = useState<string | null>(null);
+    const [roomError, setRoomError] = useState<string | null>(null);
 
     // WebSocket and WebRTC Refs
     const wsRef = useRef<WebSocket | null>(null);
@@ -120,6 +122,12 @@ export function RoomProvider({ children }: RoomProviderProps) {
             switch (msg.type) {
                 case "server/hello":
                     console.log("Server hello, nowMs:", msg.payload.nowMs);
+                    break;
+                case "error":
+                    console.error("Server error:", msg.payload);
+                    if (msg.payload.code === "room_not_found") {
+                        setRoomError("Room does not exist");
+                    }
                     break;
                 case "room/joined":
                     handleRoomJoined(msg.payload);
@@ -694,6 +702,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
         setPlayback,
         sendMessage,
         mediaError,
+        roomError,
     };
 
     return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Share2, Copy } from "lucide-react";
+import Link from "next/link";
 import { VideoGrid } from "@/components/VideoGrid";
 import { ControlBar } from "@/components/ControlBar";
 import { Sidebar } from "@/components/Sidebar";
@@ -25,7 +26,8 @@ export default function RoomPage() {
         toggleMute,
         toggleVideo,
         leaveRoom,
-        mediaError
+        mediaError,
+        roomError
     } = useRoom();
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,6 +46,14 @@ export default function RoomPage() {
                 <div className="w-full max-w-md space-y-8 rounded-2xl bg-zinc-900/50 p-8 text-center ring-1 ring-white/10 backdrop-blur-xl">
                     <h1 className="text-2xl font-semibold text-white">Join Room</h1>
                     <p className="text-zinc-400">Enter your name to join <span className="text-indigo-400 font-mono">{roomId}</span></p>
+
+                    {roomError && (
+                        <div className="bg-red-500/20 text-red-200 p-3 rounded-xl border border-red-500/30">
+                            <p>{roomError}</p>
+                            <Link href="/" className="text-xs underline hover:text-white mt-1 block">Back to Home</Link>
+                        </div>
+                    )}
+
                     <form
                         onSubmit={(e) => {
                             e.preventDefault();
@@ -57,10 +67,14 @@ export default function RoomPage() {
                             name="name"
                             placeholder="Your Name"
                             required
-                            className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            disabled={!!roomError}
+                            className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                             autoFocus
                         />
-                        <button className="rounded-xl bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-500 transition-all">
+                        <button
+                            disabled={!!roomError}
+                            className="rounded-xl bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
                             Join Now
                         </button>
                     </form>
