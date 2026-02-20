@@ -69,7 +69,7 @@ export function ReactionPanel({ isOpen, onClose, onReact }: ReactionPanelProps) 
             ref={panelRef}
             style={{
                 position: "absolute",
-                bottom: 90,
+                bottom: 100,
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 100,
@@ -141,6 +141,12 @@ export function ReactionPanel({ isOpen, onClose, onReact }: ReactionPanelProps) 
           to {
             opacity: 1;
             transform: translateX(-50%) translateY(0) scale(1);
+          }
+        }
+        @media (max-width: 768px) {
+          button {
+            font-size: 24px !important;
+            padding: 4px 6px !important;
           }
         }
       `}</style>

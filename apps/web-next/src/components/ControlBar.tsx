@@ -40,7 +40,7 @@ export function ControlBar({
   const isMuted = !localUser.hasAudio;
   const isVideoOff = !localUser.hasVideo;
   return (
-    <div className="flex items-center justify-center gap-3 px-6 py-3 rounded-full bg-neutral-900/80 backdrop-blur-xl border border-white/10 shadow-2xl transition-all hover:scale-[1.01]">
+    <div className="flex items-center justify-center gap-2 md:gap-3 px-3 md:px-6 py-2 md:py-3 rounded-2xl md:rounded-full bg-neutral-900/80 backdrop-blur-xl border border-white/10 shadow-2xl transition-all hover:scale-[1.01] overflow-x-auto max-w-[calc(100vw-2rem)] scrollbar-hide">
       <ControlButton
         onClick={toggleMute}
         active={!isMuted}
@@ -60,7 +60,7 @@ export function ControlBar({
         className="bg-neutral-800 hover:bg-neutral-700"
       />
 
-      <div className="w-px h-8 bg-white/10 mx-1" />
+      <div className="w-px h-8 bg-white/10 mx-1 hidden md:block" />
 
       <ControlButton
         onClick={toggleScreenShare}
@@ -79,7 +79,7 @@ export function ControlBar({
         className="bg-neutral-800 hover:bg-neutral-700 hover:text-pink-400"
       />
 
-      <div className="w-px h-8 bg-white/10 mx-1" />
+      <div className="w-px h-8 bg-white/10 mx-1 hidden md:block" />
 
       {/* Participants Button (Sidebar) */}
       <ControlButton
@@ -119,7 +119,7 @@ export function ControlBar({
           leaveRoom();
           window.location.href = "/";
         }}
-        className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/90 text-white hover:bg-red-600 hover:scale-110 transition-all shadow-lg shadow-red-500/20 ml-2"
+        className="flex items-center justify-center w-11 h-11 md:w-12 md:h-12 min-w-[44px] min-h-[44px] rounded-full bg-red-500/90 text-white hover:bg-red-600 hover:scale-110 transition-all shadow-lg shadow-red-500/20 ml-1 md:ml-2 shrink-0"
       >
         <PhoneOff className="w-5 h-5" />
       </button>
@@ -136,7 +136,7 @@ function ControlButton({ active = true, icon: Icon, className, ...props }: Contr
   return (
     <button
       className={clsx(
-        "flex items-center justify-center w-11 h-11 rounded-full text-white/90 transition-all",
+        "flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] rounded-full text-white/90 transition-all shrink-0",
         "hover:scale-110 active:scale-95",
         className
       )}

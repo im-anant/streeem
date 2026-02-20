@@ -10,18 +10,18 @@ interface VideoGridProps {
 
 export function VideoGrid({ participants, canvasRefs }: VideoGridProps) {
   return (
-    <div className="h-full w-full p-4 flex items-center justify-center overflow-y-auto">
+    <div className="h-full w-full p-2 md:p-4 flex items-center justify-center overflow-y-auto">
       <div
-        className="grid w-full h-full gap-4 auto-rows-fr"
+        className="grid w-full h-full gap-2 md:gap-4 auto-rows-fr"
         style={{
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
         }}
       >
         {participants.map((p) => (
           <VideoCard
             key={p.id}
             participant={p}
-            className="w-full h-full min-h-[200px]"
+            className="w-full h-full min-h-[140px] md:min-h-[200px]"
             canvasRef={canvasRefs?.get(p.id)}
           />
         ))}

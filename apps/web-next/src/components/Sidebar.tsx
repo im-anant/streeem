@@ -14,7 +14,7 @@ export function Sidebar({ open, participants, onClose }: SidebarProps) {
   return (
     <aside
       className={clsx(
-        "fixed inset-y-0 right-0 z-[100] w-[340px] border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-xl transition-transform duration-300 ease-in-out",
+        "fixed inset-y-0 right-0 z-[100] w-full md:w-[340px] border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-xl transition-transform duration-300 ease-in-out",
         open ? "translate-x-0" : "translate-x-full"
       )}
     >
