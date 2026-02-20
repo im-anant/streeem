@@ -282,9 +282,9 @@ export default function RoomPage() {
                     </div>
 
                     {/* Bottom Filmstrip */}
-                    <div className="absolute bottom-0 left-0 w-full h-[120px] bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center gap-3 px-4 overflow-x-auto border-t border-white/10">
+                    <div className="absolute bottom-0 left-0 w-full h-[90px] md:h-[120px] bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center gap-2 md:gap-3 px-3 md:px-4 overflow-x-auto border-t border-white/10">
                         {participants.map(p => (
-                            <div key={p.id} className="h-[100px] w-[160px] shrink-0 relative rounded-lg overflow-hidden border border-white/10 bg-zinc-900 group">
+                            <div key={p.id} className="h-[70px] w-[110px] md:h-[100px] md:w-[160px] shrink-0 relative rounded-lg overflow-hidden border border-white/10 bg-zinc-900 group">
                                 <VideoCard participant={p} className="w-full h-full object-cover" />
                                 <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/80 to-transparent">
                                     <p className="text-[10px] font-medium text-white truncate px-1">
@@ -322,7 +322,7 @@ export default function RoomPage() {
                         return (
                             <>
                                 {/* Main Grid Stage */}
-                                <div className={cn("w-full h-full flex items-center justify-center p-4", showFloatingSelf && "pb-24")}>
+                                <div className={cn("w-full h-full flex items-center justify-center p-2 md:p-4 pb-24 md:pb-24", showFloatingSelf && "pb-24")}>
                                     {gridParticipants.length === 0 && !localUser ? (
                                         // Waiting State (No one in room)
                                         <div className="flex flex-col items-center justify-center text-zinc-500 space-y-4">
@@ -343,7 +343,7 @@ export default function RoomPage() {
 
                                 {/* Local Video: Floating Bottom-Right (Only if NOT large group) */}
                                 {showFloatingSelf && localUser && (
-                                    <div className="absolute bottom-6 right-6 w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
+                                    <div className="absolute bottom-20 right-3 md:bottom-6 md:right-6 w-[120px] md:w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
                                         <VideoCard participant={localUser} className="w-full h-full object-cover" canvasRef={getCanvasRef(localUser.id)} />
                                         {/* Overlay Name */}
                                         <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white font-medium group-hover:opacity-100 opacity-0 transition-opacity">
@@ -358,7 +358,7 @@ export default function RoomPage() {
             )}
 
             {/* Global Controls Overlay */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] w-auto max-w-full px-4">
+            <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-auto max-w-full px-2 md:px-4">
                 <ControlBar
                     onStartStream={() => setStreamModalOpen(true)}
                     onToggleChat={() => setIsChatOpen((prev) => !prev)}
@@ -432,6 +432,7 @@ export default function RoomPage() {
                         color: gestureRunning ? "#34d399" : "#fbbf24",
                         border: `1px solid ${gestureRunning ? "rgba(52,211,153,0.2)" : "rgba(251,191,36,0.2)"}`,
                     }}
+                    className="hidden md:flex"
                 >
                     <div
                         style={{
