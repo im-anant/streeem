@@ -13,6 +13,7 @@ import { useRoom } from "@/contexts/RoomContext";
 import { VideoCard } from "@/components/VideoCard";
 import { ChatWidget } from "@/components/ChatWidget";
 import { ReactionPanel } from "@/components/ReactionPanel";
+import { CinematicIdleRoom } from "@/components/CinematicIdleRoom";
 import { TileReactionCanvasHandle } from "@/components/TileReactionCanvas";
 import { useGestureDetection, type GestureEvent } from "@/hooks/useGestureDetection";
 import { clsx } from "clsx";
@@ -323,8 +324,11 @@ export default function RoomPage() {
                             <>
                                 {/* Main Grid Stage */}
                                 <div className={cn("w-full h-full flex items-center justify-center p-2 md:p-4 pb-24 md:pb-24", showFloatingSelf && "pb-24")}>
-                                    {gridParticipants.length === 0 && !localUser ? (
-                                        // Waiting State (No one in room)
+                                    {totalCount === 1 ? (
+                                        // Cinematic Idle Mode — user is alone
+                                        <CinematicIdleRoom roomId={roomId} />
+                                    ) : gridParticipants.length === 0 && !localUser ? (
+                                        // Fallback: No one in room at all
                                         <div className="flex flex-col items-center justify-center text-zinc-500 space-y-4">
                                             <div className="w-24 h-24 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center relative">
                                                 <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping"></div>
