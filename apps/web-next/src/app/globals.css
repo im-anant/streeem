@@ -249,6 +249,127 @@ body {
   }
 }
 
+/* ─── Participant Sidebar ─────────────────────── */
+.participant-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 15, 20, 0.95);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  transition: width 200ms ease, opacity 200ms ease;
+  overflow: hidden;
+}
+
+.participant-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.participant-sidebar__tiles {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scroll-behavior: smooth;
+}
+
+/* Minimal scrollbar */
+.participant-sidebar__tiles::-webkit-scrollbar {
+  width: 2px;
+}
+
+.participant-sidebar__tiles::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.participant-sidebar__tiles::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.participant-sidebar__tile {
+  flex-shrink: 0;
+}
+
+/* Re-expand button */
+.participant-sidebar__expand-btn {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  background: rgba(28, 28, 30, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  padding: 12px 6px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.participant-sidebar__expand-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* ─── Dock re-centering when sidebar is active ── */
+.streeem-sidebar-active .streeem-dock {
+  left: calc((100vw - 240px) / 2);
+}
+
+.streeem-sidebar-active .dock-trigger-zone {
+  width: calc(100vw - 240px);
+}
+
+/* When sidebar is collapsed, dock re-centers to full viewport */
+.streeem-sidebar-active.sidebar-collapsed .streeem-dock {
+  left: 50%;
+}
+
+.streeem-sidebar-active.sidebar-collapsed .dock-trigger-zone {
+  width: 100%;
+}
+
+/* ─── Responsive sidebar ──────────────────────── */
+@media (max-width: 1023px) {
+  .participant-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 90;
+    width: 240px !important;
+  }
+
+  .streeem-sidebar-active .streeem-dock {
+    left: 50%;
+  }
+
+  .streeem-sidebar-active .dock-trigger-zone {
+    width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .participant-sidebar {
+    display: none;
+  }
+
+  .participant-sidebar__expand-btn {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
 
   *,

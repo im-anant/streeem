@@ -6,7 +6,7 @@ import { Share2, Copy } from "lucide-react";
 import Link from "next/link";
 import { VideoGrid } from "@/components/VideoGrid";
 import { StreemDock } from "@/components/StreemDock";
-import { Sidebar } from "@/components/Sidebar";
+import { ParticipantSidebar } from "@/components/ParticipantSidebar";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { StreamInputModal } from "@/components/StreamInputModal";
 import { useRoom } from "@/contexts/RoomContext";
@@ -43,6 +43,7 @@ export default function RoomPage() {
     } = useRoom();
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [participantSidebarCollapsed, setParticipantSidebarCollapsed] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isReactionPanelOpen, setIsReactionPanelOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
@@ -194,7 +195,11 @@ export default function RoomPage() {
     }
 
     return (
-        <main className="relative h-dvh w-full overflow-hidden bg-black text-white">
+        <main className={cn(
+            "relative h-dvh w-full overflow-hidden bg-black text-white",
+            isContentMode && "streeem-sidebar-active",
+            isContentMode && participantSidebarCollapsed && "sidebar-collapsed"
+        )}>
             {mediaError && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg backdrop-blur flex items-center gap-2">
                     <span>⚠️ {mediaError}</span>
@@ -224,77 +229,72 @@ export default function RoomPage() {
                 // ===============
                 // CONTENT MODE (Screen Share OR Watch Party)
                 // ===============
-                <div className="flex flex-col h-full w-full">
-                    {/* Main Stage */}
-                    <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-zinc-950 p-4 pb-[140px]">
+                <div className="flex flex-row h-full w-full">
+                    {/* LEFT: Content area */}
+                    <div className="flex-1 relative overflow-hidden flex flex-col min-w-0">
+                        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-zinc-950 p-4">
 
-                        {activeStreamUrl && (
-                            // Watch Party Player
-                            <div className="w-full h-full max-w-6xl flex items-center justify-center">
-                                <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 relative bg-black">
-                                    <VideoPlayer />
-                                    <div className="absolute top-4 right-4 bg-red-600 px-3 py-1 rounded-full text-xs font-bold text-white shadow animate-pulse">
-                                        LIVE PARTY
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {!activeStreamUrl && activeScreenSharer && (
-                            // Screen Share View
-                            <div className="w-full h-full flex items-center justify-center relative">
-                                <div className="relative w-full h-full max-w-[90%] max-h-[85vh] flex items-center justify-center">
-                                    <video
-                                        autoPlay
-                                        playsInline
-                                        // Muted if local share or remote (usually we don't want echoes, but check audio rules)
-                                        muted={true}
-                                        ref={(v) => {
-                                            if (v) {
-                                                if (activeScreenSharer.isLocal && screenStream) {
-                                                    v.srcObject = screenStream;
-                                                } else if (!activeScreenSharer.isLocal && activeScreenSharer.stream) {
-                                                    v.srcObject = activeScreenSharer.stream;
-                                                }
-                                            }
-                                        }}
-                                        className="w-full h-full object-contain"
-                                    />
-
-                                    {/* Label */}
-                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-4 py-2 rounded-full text-sm text-white font-medium border border-white/10">
-                                        {activeScreenSharer.isLocal ? "You are sharing your screen" : `${activeScreenSharer.name}'s Screen`}
-                                    </div>
-
-                                    {/* Local Stop Button */}
-                                    {activeScreenSharer.isLocal && (
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={toggleScreenShare}
-                                                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold shadow-2xl scale-110"
-                                            >
-                                                Stop Sharing
-                                            </button>
+                            {activeStreamUrl && (
+                                // Watch Party Player
+                                <div className="w-full h-full max-w-6xl flex items-center justify-center">
+                                    <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 relative bg-black">
+                                        <VideoPlayer />
+                                        <div className="absolute top-4 right-4 bg-red-600 px-3 py-1 rounded-full text-xs font-bold text-white shadow animate-pulse">
+                                            LIVE PARTY
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+
+                            {!activeStreamUrl && activeScreenSharer && (
+                                // Screen Share View
+                                <div className="w-full h-full flex items-center justify-center relative">
+                                    <div className="relative w-full h-full max-w-[90%] max-h-[85vh] flex items-center justify-center">
+                                        <video
+                                            autoPlay
+                                            playsInline
+                                            muted={true}
+                                            ref={(v) => {
+                                                if (v) {
+                                                    if (activeScreenSharer.isLocal && screenStream) {
+                                                        v.srcObject = screenStream;
+                                                    } else if (!activeScreenSharer.isLocal && activeScreenSharer.stream) {
+                                                        v.srcObject = activeScreenSharer.stream;
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full h-full object-contain"
+                                        />
+
+                                        {/* Label */}
+                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-4 py-2 rounded-full text-sm text-white font-medium border border-white/10">
+                                            {activeScreenSharer.isLocal ? "You are sharing your screen" : `${activeScreenSharer.name}'s Screen`}
+                                        </div>
+
+                                        {/* Local Stop Button */}
+                                        {activeScreenSharer.isLocal && (
+                                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={toggleScreenShare}
+                                                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold shadow-2xl scale-110"
+                                                >
+                                                    Stop Sharing
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Bottom Filmstrip */}
-                    <div className="absolute bottom-0 left-0 w-full h-[90px] md:h-[120px] bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center gap-2 md:gap-3 px-3 md:px-4 overflow-x-auto border-t border-white/10">
-                        {participants.map(p => (
-                            <div key={p.id} className="h-[70px] w-[110px] md:h-[100px] md:w-[160px] shrink-0 relative rounded-lg overflow-hidden border border-white/10 bg-zinc-900 group">
-                                <VideoCard participant={p} className="w-full h-full object-cover" />
-                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/80 to-transparent">
-                                    <p className="text-[10px] font-medium text-white truncate px-1">
-                                        {p.name} {p.isLocal && "(You)"}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    {/* RIGHT: Participant Sidebar */}
+                    <ParticipantSidebar
+                        participants={participants}
+                        localUser={localUser}
+                        canvasRefs={canvasRefs}
+                        getCanvasRef={getCanvasRef}
+                    />
                 </div>
             ) : (
                 // ===============
@@ -387,12 +387,31 @@ export default function RoomPage() {
                 }}
             />
 
-            {/* Sidebar (Participants only) */}
-            <Sidebar
-                open={sidebarOpen}
-                participants={participants}
-                onClose={() => setSidebarOpen(false)}
-            />
+            {/* Sidebar toggle — acts as participant list when NOT in content mode */}
+            {sidebarOpen && !isContentMode && (
+                <aside
+                    className="fixed inset-y-0 right-0 z-[100] w-full md:w-[340px] border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-xl"
+                >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-white">Participants ({participants.length})</span>
+                        </div>
+                        <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white">
+                            ✕
+                        </button>
+                    </div>
+                    <div className="p-4 space-y-3">
+                        {participants.map(p => (
+                            <div key={p.id} className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-xs font-bold">
+                                    {p.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-sm text-zinc-200">{p.name} {p.isLocal && "(You)"}</span>
+                            </div>
+                        ))}
+                    </div>
+                </aside>
+            )}
 
             {/* Floating Chat Widget */}
             <ChatWidget
