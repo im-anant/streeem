@@ -13,37 +13,247 @@ body {
 
 /* Cinematic idle room animations */
 @keyframes ambientShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes soundWaveBreath {
-  0%, 100% { transform: scaleY(0.3); }
-  50%      { transform: scaleY(1); }
+
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+
+  50% {
+    transform: scaleY(1);
+  }
 }
 
 @keyframes cinematicFadeIn {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes cinematicFadeInDelay {
-  0%, 30% { opacity: 0; transform: translateY(12px); }
-  100%    { opacity: 1; transform: translateY(0); }
+
+  0%,
+  30% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes inviteRipple {
-  0%   { transform: scale(1); opacity: 0.5; }
-  100% { transform: scale(2.5); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
 }
 
 /* Scrollbar hide utility */
-.scrollbar-hide::-webkit-scrollbar { display: none; }
-.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─── Streeem Dock ─────────────────────────────── */
+.streeem-dock {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 14px 20px;
+  background: rgba(28, 28, 30, 0.80);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 22px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  z-index: 1000;
+  overflow: visible;
+  /* CRITICAL: allows icons to scale outside pill */
+  transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+/* Suppress dock transition during magnification tracking */
+.streeem-dock.magnifying {
+  transition: none;
+}
+
+.streeem-dock.dock-hidden {
+  transform: translateX(-50%) translateY(calc(100% + 24px));
+  transition: transform 300ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* ─── Dock Icons: fixed 48×48 slots, GPU transform only ──── */
+.dock-icon {
+  width: 48px;
+  /* FIXED — JS never touches this */
+  height: 48px;
+  /* FIXED — JS never touches this */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  will-change: transform;
+  /* GPU layer promotion */
+  transform: scale(1);
+  /* default state */
+  transform-origin: bottom center;
+  /* grows upward */
+  /* Spring transition for return-to-normal only */
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* During active magnification — disable transition for instant tracking */
+.streeem-dock.magnifying .dock-icon {
+  transition: none;
+}
+
+.dock-icon:hover {
+  color: rgba(255, 255, 255, 1);
+}
+
+.dock-icon:active {
+  transform: scale(0.92);
+}
+
+.dock-icon.dock-icon--no-mag {
+  transition: none;
+}
+
+/* ─── Hover Trigger Zone ─────────────────────── */
+.dock-trigger-zone {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 20px;
+  pointer-events: all;
+  z-index: 999;
+  background: transparent;
+}
+
+/* ─── Status Strip ────────────────────────────── */
+.dock-status-strip {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 3px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  z-index: 998;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.dock-status-strip.visible {
+  opacity: 1;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.muted {
+  background: #EF4444;
+}
+
+.status-dot.sharing {
+  background: #3B82F6;
+}
+
+/* ─── Dock Tooltip ────────────────────────────── */
+.dock-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.80);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.dock-icon:hover .dock-tooltip {
+  opacity: 1;
+  transition-delay: 400ms;
+}
+
+/* ─── Mobile dock adaptation ──────────────────── */
+@media (max-width: 768px) {
+  .streeem-dock {
+    gap: 10px;
+    padding: 10px 16px;
+    min-height: 64px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    bottom: 8px;
+  }
+
+  .dock-trigger-zone {
+    display: none;
+  }
+
+  .dock-tooltip {
+    display: none;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { Share2, Copy } from "lucide-react";
 import Link from "next/link";
 import { VideoGrid } from "@/components/VideoGrid";
-import { ControlBar } from "@/components/ControlBar";
+import { StreemDock } from "@/components/StreemDock";
 import { Sidebar } from "@/components/Sidebar";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { StreamInputModal } from "@/components/StreamInputModal";
@@ -361,18 +361,16 @@ export default function RoomPage() {
                 </div>
             )}
 
-            {/* Global Controls Overlay */}
-            <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-auto max-w-full px-2 md:px-4">
-                <ControlBar
-                    onStartStream={() => setStreamModalOpen(true)}
-                    onToggleChat={() => setIsChatOpen((prev) => !prev)}
-                    onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-                    onToggleReactions={() => setIsReactionPanelOpen((prev) => !prev)}
-                    sidebarOpen={sidebarOpen}
-                    chatOpen={isChatOpen}
-                    reactionsOpen={isReactionPanelOpen}
-                />
-            </div>
+            {/* Streeem Dock — macOS-style auto-hiding controls */}
+            <StreemDock
+                onStartStream={() => setStreamModalOpen(true)}
+                onToggleChat={() => setIsChatOpen((prev) => !prev)}
+                onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+                onToggleReactions={() => setIsReactionPanelOpen((prev) => !prev)}
+                sidebarOpen={sidebarOpen}
+                chatOpen={isChatOpen}
+                reactionsOpen={isReactionPanelOpen}
+            />
 
             {/* Reaction Panel (floating above controls) */}
             <ReactionPanel
