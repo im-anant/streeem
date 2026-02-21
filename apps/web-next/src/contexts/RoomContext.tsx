@@ -438,12 +438,22 @@ export function RoomProvider({ children }: RoomProviderProps) {
             }
         }
 
-        // Send Join Request
-        // We need to wait for localUser to be set by server response? 
-        // No, we send ClientInfo in join request.
-        // We generate a temp ID or let server assign? Server events.ts says client provides ClientInfo.
-        // So we generate ID here.
         const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Wait for WebSocket to be ready before sending join
+        const waitForWs = async (): Promise<boolean> => {
+            for (let i = 0; i < 15; i++) {
+                if (wsRef.current?.readyState === WebSocket.OPEN) return true;
+                await new Promise(r => setTimeout(r, 200));
+            }
+            return false;
+        };
+
+        const wsReady = await waitForWs();
+        if (!wsReady) {
+            setRoomError("Could not connect to server. Please try again.");
+            return;
+        }
 
         sendWs({
             v: WS_PROTOCOL_VERSION,
