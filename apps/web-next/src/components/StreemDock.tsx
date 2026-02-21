@@ -21,6 +21,7 @@ interface StreemDockProps {
     sidebarOpen: boolean;
     chatOpen: boolean;
     reactionsOpen: boolean;
+    onDockVisibilityChange?: (visible: boolean) => void;
 }
 
 // ---- Magnification math (PRD v1.1 — GPU-only transform:scale) ----
@@ -55,6 +56,7 @@ export function StreemDock({
     sidebarOpen,
     chatOpen,
     reactionsOpen,
+    onDockVisibilityChange,
 }: StreemDockProps) {
     const {
         localUser, toggleMute, toggleVideo, toggleScreenShare,
@@ -103,6 +105,11 @@ export function StreemDock({
         if (dockHasFocus() || hasOpenMenu) return;
         setDockVisible(false);
     }, [dockHasFocus, hasOpenMenu]);
+
+    // Forward dock visibility to parent (for PiP hide-with-dock sync)
+    useEffect(() => {
+        onDockVisibilityChange?.(dockVisible);
+    }, [dockVisible, onDockVisibilityChange]);
 
     const resetHideTimer = useCallback(() => {
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);

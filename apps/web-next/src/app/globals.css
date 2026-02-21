@@ -249,6 +249,104 @@ body {
   }
 }
 
+/* ─── Video Tile: hover-reveal label + scrim ──── */
+.tile-scrim {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 35%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tile-name-label {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Desktop hover reveal */
+.video-tile:hover .tile-scrim,
+.video-tile:hover .tile-name-label {
+  opacity: 1;
+}
+
+/* Tap-to-reveal via .label-visible class */
+.video-tile.label-visible .tile-scrim,
+.video-tile.label-visible .tile-name-label {
+  opacity: 1;
+}
+
+/* ─── PiP Tile ────────────────────────────────── */
+.pip-tile {
+  position: fixed;
+  z-index: 50;
+  width: 280px;
+  aspect-ratio: 16/9;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #18181b;
+  cursor: grab;
+  transition: all 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform, left, top, right, bottom;
+}
+
+.pip-tile.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  transition: none;
+}
+
+/* ─── Mobile PiP ──────────────────────────────── */
+@media (max-width: 768px) {
+  .pip-tile {
+    width: 120px;
+    height: 90px;
+    aspect-ratio: unset;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    cursor: default;
+    /* PiP "rides" the dock — sits above when dock visible, settles to bottom when hidden */
+    bottom: 80px;
+    /* default: above mobile dock (64px dock + 8px dock-bottom + 8px gap) */
+    right: 16px;
+    transition: bottom 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* When dock hides, PiP settles to the bottom edge */
+  .pip-tile.dock-hidden {
+    bottom: 8px;
+  }
+
+  /* Mobile: disable hover reveal, use tap instead */
+  .video-tile:hover .tile-scrim,
+  .video-tile:hover .tile-name-label {
+    opacity: 0;
+  }
+
+  .video-tile.label-visible .tile-scrim,
+  .video-tile.label-visible .tile-name-label {
+    opacity: 1;
+  }
+}
+
 /* ─── Participant Sidebar ─────────────────────── */
 .participant-sidebar {
   height: 100%;

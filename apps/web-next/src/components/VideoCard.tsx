@@ -42,7 +42,7 @@ export function VideoCard({ participant, className, canvasRef }: VideoCardProps)
     return (
         <div
             className={twMerge(
-                "relative group overflow-hidden bg-zinc-900 rounded-xl border border-zinc-800",
+                "video-tile relative group overflow-hidden bg-zinc-900 rounded-xl border border-zinc-800",
                 participant.isSpeaking && "ring-2 ring-indigo-500",
                 className
             )}
@@ -82,18 +82,18 @@ export function VideoCard({ participant, className, canvasRef }: VideoCardProps)
             {/* Per-tile reaction canvas overlay */}
             <TileReactionCanvas ref={canvasRef as any} />
 
-            {/* Overlay Info */}
-            <div className="absolute bottom-3 left-3 flex items-center gap-2 max-w-[80%]">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/5">
-                    <span className="text-sm font-medium text-white truncate max-w-[120px]">
-                        {participant.name} {participant.isLocal && "(You)"}
-                    </span>
-                    {participant.hasAudio ? (
-                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    ) : (
-                        <MicOff className="w-3 h-3 text-red-400" />
-                    )}
-                </div>
+            {/* Gradient scrim + name label — hidden by default, visible on hover */}
+            <div className="tile-scrim" />
+            <div className="tile-name-label">
+                {participant.isSpeaking && (
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                )}
+                <span className="truncate max-w-[120px]">
+                    {participant.name} {participant.isLocal && "(You)"}
+                </span>
+                {!participant.hasAudio && (
+                    <MicOff className="w-3 h-3 text-red-400 flex-shrink-0" />
+                )}
             </div>
         </div>
     );
