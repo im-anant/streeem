@@ -1,4 +1,6 @@
 {
-  "/room/[roomId]/page": "app/room/[roomId]/page.js",
-  "/page": "app/page.js"
+  "/api/turn-credentials/route": "app/api/turn-credentials/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/page": "app/page.js",
+  "/room/[roomId]/page": "app/room/[roomId]/page.js"
 }

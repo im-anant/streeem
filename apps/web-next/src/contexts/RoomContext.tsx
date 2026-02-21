@@ -60,29 +60,42 @@ interface RoomProviderProps {
     children: React.ReactNode;
 }
 
-const getIceServers = () => {
+/**
+ * Returns a baseline set of ICE servers that is always available.
+ * Dynamic / env-configured TURN credentials are merged in createPeerConnection().
+ */
+const getBaseIceServers = (): RTCIceServer[] => {
     const servers: RTCIceServer[] = [
         { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
     ];
 
+    // --- Built-in free TURN fallback (Open Relay Project – staticauth) ---
+    // Covers UDP, TCP, and TLS on ports 80 & 443 to bypass corporate firewalls.
+    servers.push({
+        urls: [
+            "turn:a.relay.metered.ca:80",
+            "turn:a.relay.metered.ca:80?transport=tcp",
+            "turn:a.relay.metered.ca:443",
+            "turn:a.relay.metered.ca:443?transport=tcp",
+            "turns:a.relay.metered.ca:443",
+        ],
+        username: "e8dd65b92a0cfa69a58e82ff",
+        credential: "RHJnClurMC/FqFnl",
+    });
+
+    // --- Optional: env-configured TURN (takes priority when configured) ---
     const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
-    if (turnUrl) {
-        if (!turnUrl.startsWith("turn:") && !turnUrl.startsWith("turns:")) {
-            console.error(`[WebRTC] Invalid TURN URL: ${turnUrl}. Must start with "turn:" or "turns:". Check your environment variables.`);
-        } else {
-            console.log(`[WebRTC] Using TURN server: ${turnUrl}`);
-            servers.push({
-                urls: turnUrl,
-                username: process.env.NEXT_PUBLIC_TURN_USERNAME,
-                credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
-            });
+    if (turnUrl && (turnUrl.startsWith("turn:") || turnUrl.startsWith("turns:"))) {
+        const username = process.env.NEXT_PUBLIC_TURN_USERNAME;
+        const credential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
+        if (username && credential) {
+            servers.push({ urls: turnUrl, username, credential });
+            console.log(`[WebRTC] Env TURN configured: ${turnUrl}`);
         }
-    } else {
-        // We will try fetching from API if env vars are missing or if we want dynamic.
-        // But for now, let's keep this simple fallback or just rely on the async fetch we'll add.
     }
 
-    return { iceServers: servers };
+    return servers;
 };
 
 export function RoomProvider({ children }: RoomProviderProps) {
@@ -205,12 +218,31 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
     }, []);
 
+    /**
+     * Flush any ICE candidates that arrived before remoteDescription was set.
+     * MUST be called after every successful setRemoteDescription().
+     */
+    const flushPendingCandidates = async (targetUserId: string, pc: RTCPeerConnection) => {
+        const pending = pendingCandidates.current.get(targetUserId);
+        if (!pending || pending.length === 0) return;
+        console.log(`[WebRTC] Flushing ${pending.length} pending ICE candidates for ${targetUserId}`);
+        for (const candidate of pending) {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error("[WebRTC] Error adding buffered ICE candidate", e);
+            }
+        }
+        pendingCandidates.current.delete(targetUserId);
+    };
+
     const createPeerConnection = async (targetUserId: string) => {
         console.log(`[WebRTC] Creating PC for ${targetUserId}`);
 
-        // Fetch ICE servers dynamically
-        const { iceServers } = getIceServers();
+        // Start with baseline servers (STUN + Open Relay TURN fallback)
+        const iceServers = [...getBaseIceServers()];
 
+        // Try fetching dynamic / env-configured TURN from our API
         try {
             const res = await fetch('/api/turn-credentials');
             if (res.ok) {
@@ -224,26 +256,50 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 }
             }
         } catch (e) {
-            console.error("Failed to fetch TURN credentials", e);
+            console.warn("[WebRTC] Failed to fetch dynamic TURN credentials, using fallback", e);
         }
+
+        const turnCount = iceServers.filter(s =>
+            (Array.isArray(s.urls) ? s.urls : [s.urls]).some(u => u.startsWith("turn:") || u.startsWith("turns:"))
+        ).length;
+        console.log(`[WebRTC] ICE servers configured: ${iceServers.length} entries (${turnCount} TURN)`);
 
         const pc = new RTCPeerConnection({ iceServers });
 
+        // --- Diagnostic logging ---
         pc.oniceconnectionstatechange = () => {
-            console.log(`[WebRTC] ICE Connection State (${targetUserId}): ${pc.iceConnectionState}`);
+            console.log(`[WebRTC] ICE state (${targetUserId}): ${pc.iceConnectionState}`);
+            if (pc.iceConnectionState === "failed") {
+                console.error(`[WebRTC] ICE FAILED for ${targetUserId}. Restarting ICE...`);
+                pc.restartIce();
+            }
+        };
+
+        pc.onconnectionstatechange = () => {
+            console.log(`[WebRTC] Connection state (${targetUserId}): ${pc.connectionState}`);
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log(`[WebRTC] ICE gathering state (${targetUserId}): ${pc.iceGatheringState}`);
         };
 
         pc.onicecandidate = (event) => {
-            if (event.candidate && currentRoomId.current) {
-                sendWs({
-                    v: WS_PROTOCOL_VERSION,
-                    type: "webrtc/ice",
-                    payload: {
-                        roomId: currentRoomId.current,
-                        toUserId: targetUserId,
-                        candidate: event.candidate.toJSON(),
-                    },
-                });
+            if (event.candidate) {
+                // Log candidate type for debugging (host/srflx/relay)
+                console.log(`[WebRTC] Local ICE candidate (${targetUserId}): ${event.candidate.type ?? "unknown"} ${event.candidate.protocol ?? ""} ${event.candidate.address ?? ""}:${event.candidate.port ?? ""}`);
+                if (currentRoomId.current) {
+                    sendWs({
+                        v: WS_PROTOCOL_VERSION,
+                        type: "webrtc/ice",
+                        payload: {
+                            roomId: currentRoomId.current,
+                            toUserId: targetUserId,
+                            candidate: event.candidate.toJSON(),
+                        },
+                    });
+                }
+            } else {
+                console.log(`[WebRTC] ICE gathering complete for ${targetUserId}`);
             }
         };
 
@@ -258,31 +314,20 @@ export function RoomProvider({ children }: RoomProviderProps) {
             }));
         };
 
-        // Add local tracks if available
+        // Add local tracks BEFORE creating offer/answer
         if (localStreamRef.current) {
-            console.log(`[WebRTC] Adding local tracks to ${targetUserId}`);
+            console.log(`[WebRTC] Adding ${localStreamRef.current.getTracks().length} local tracks to PC for ${targetUserId}`);
             localStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => {
                 pc.addTrack(track, localStreamRef.current!);
             });
         } else {
-            console.warn(`[WebRTC] No local stream found when creating PC for ${targetUserId}`);
+            console.warn(`[WebRTC] No local stream when creating PC for ${targetUserId}`);
         }
 
         pcsRef.current.set(targetUserId, pc);
 
-        // Process pending candidates
-        const pending = pendingCandidates.current.get(targetUserId);
-        if (pending && pending.length > 0) {
-            console.log(`[WebRTC] Processing ${pending.length} pending ICE candidates for ${targetUserId}`);
-            for (const candidate of pending) {
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (e) {
-                    console.error("Error adding pending ICE candidate", e);
-                }
-            }
-            pendingCandidates.current.delete(targetUserId);
-        }
+        // NOTE: Do NOT flush pending candidates here.
+        // They must wait until after setRemoteDescription() is called.
 
         return pc;
     };
@@ -362,6 +407,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
 
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        // Flush any ICE candidates that arrived before we had remoteDescription
+        await flushPendingCandidates(payload.fromUserId, pc);
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
@@ -380,19 +428,27 @@ export function RoomProvider({ children }: RoomProviderProps) {
         const pc = pcsRef.current.get(payload.fromUserId);
         if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            // Flush any ICE candidates that arrived before we had remoteDescription
+            await flushPendingCandidates(payload.fromUserId, pc);
         }
     };
 
     const handleWebrtcIce = async (payload: { roomId: string; fromUserId: string; candidate: RTCIceCandidateInit }) => {
         const pc = pcsRef.current.get(payload.fromUserId);
-        if (pc) {
+        if (pc && pc.remoteDescription) {
+            // PC exists and remoteDescription is set — safe to add immediately
             try {
                 await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
             } catch (e) {
-                console.error("Error adding ICE candidate", e);
+                console.error("[WebRTC] Error adding ICE candidate", e);
             }
         } else {
-            console.warn(`[WebRTC] Received ICE for missing PC (${payload.fromUserId}), buffering.`);
+            // Buffer: either no PC yet, OR PC exists but remoteDescription not set yet
+            if (pc && !pc.remoteDescription) {
+                console.warn(`[WebRTC] Buffering ICE for ${payload.fromUserId} (remoteDescription not set yet)`);
+            } else {
+                console.warn(`[WebRTC] Buffering ICE for ${payload.fromUserId} (no PC yet)`);
+            }
             const pending = pendingCandidates.current.get(payload.fromUserId) || [];
             pending.push(payload.candidate);
             pendingCandidates.current.set(payload.fromUserId, pending);
