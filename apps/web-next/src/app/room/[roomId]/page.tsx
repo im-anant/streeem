@@ -7,6 +7,7 @@ import Link from "next/link";
 import { VideoGrid } from "@/components/VideoGrid";
 import { StreemDock } from "@/components/StreemDock";
 import { ParticipantSidebar } from "@/components/ParticipantSidebar";
+import { PipTile } from "@/components/PipTile";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { StreamInputModal } from "@/components/StreamInputModal";
 import { useRoom } from "@/contexts/RoomContext";
@@ -47,6 +48,7 @@ export default function RoomPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isReactionPanelOpen, setIsReactionPanelOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
+    const [dockVisible, setDockVisible] = useState(true);
     const [gestureEnabled, setGestureEnabled] = useState(() => {
         if (typeof window !== "undefined") {
             return localStorage.getItem("streeem_gesture_enabled") !== "false";
@@ -345,15 +347,13 @@ export default function RoomPage() {
                                     )}
                                 </div>
 
-                                {/* Local Video: Floating Bottom-Right (Only if NOT large group) */}
+                                {/* Local Video: Floating PiP with snap-to-corner drag */}
                                 {showFloatingSelf && localUser && (
-                                    <div className="absolute bottom-20 right-3 md:bottom-6 md:right-6 w-[120px] md:w-[280px] aspect-video z-50 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-zinc-900 transition-all hover:scale-105 group">
-                                        <VideoCard participant={localUser} className="w-full h-full object-cover" canvasRef={getCanvasRef(localUser.id)} />
-                                        {/* Overlay Name */}
-                                        <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white font-medium group-hover:opacity-100 opacity-0 transition-opacity">
-                                            You
-                                        </div>
-                                    </div>
+                                    <PipTile
+                                        participant={localUser}
+                                        canvasRef={getCanvasRef(localUser.id)}
+                                        dockVisible={dockVisible}
+                                    />
                                 )}
                             </>
                         );
@@ -370,6 +370,7 @@ export default function RoomPage() {
                 sidebarOpen={sidebarOpen}
                 chatOpen={isChatOpen}
                 reactionsOpen={isReactionPanelOpen}
+                onDockVisibilityChange={setDockVisible}
             />
 
             {/* Reaction Panel (floating above controls) */}
