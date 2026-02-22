@@ -185,7 +185,7 @@ export function CinematicIdleRoom({ roomId, voiceEnabled = true }: CinematicIdle
     }, []);
 
     // Sound wave bar count
-    const WAVE_BARS = 5;
+    const WAVE_BARS = 15;
 
     return (
         <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden">
@@ -208,36 +208,7 @@ export function CinematicIdleRoom({ roomId, voiceEnabled = true }: CinematicIdle
                 }}
             />
 
-            {/* Layer 2: Sound Wave */}
-            <div
-                className="absolute flex items-center justify-center gap-[6px]"
-                style={{
-                    zIndex: 2,
-                    bottom: "38%",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                }}
-            >
-                {Array.from({ length: WAVE_BARS }).map((_, i) => (
-                    <div
-                        key={i}
-                        style={{
-                            width: 3,
-                            height: 32,
-                            borderRadius: 2,
-                            background: "rgba(255,255,255,0.25)",
-                            boxShadow: "0 0 8px rgba(255,255,255,0.1)",
-                            animation: prefersReducedMotion.current
-                                ? "none"
-                                : `soundWaveBreath 2s ease-in-out infinite`,
-                            animationDelay: `${i * 0.15}s`,
-                            transformOrigin: "center",
-                        }}
-                    />
-                ))}
-            </div>
-
-            {/* Layer 3: Cinematic Text + CTA */}
+            {/* Layer 2: Cinematic Text + CTA + Wave */}
             <div
                 className="relative flex flex-col items-center text-center px-6"
                 style={{ zIndex: 3 }}
@@ -256,7 +227,7 @@ export function CinematicIdleRoom({ roomId, voiceEnabled = true }: CinematicIdle
 
                 {/* Subtext */}
                 <p
-                    className="mt-3 text-sm sm:text-base text-zinc-400 max-w-md"
+                    className="mt-4 text-sm sm:text-base text-zinc-400 max-w-md"
                     style={{
                         animation: "cinematicFadeInDelay 1.8s ease-out forwards",
                         opacity: 0,
@@ -267,7 +238,7 @@ export function CinematicIdleRoom({ roomId, voiceEnabled = true }: CinematicIdle
 
                 {/* Live indicator */}
                 <div
-                    className="mt-6 flex items-center gap-2"
+                    className="mt-3 flex items-center gap-2"
                     style={{
                         animation: "cinematicFadeInDelay 2s ease-out forwards",
                         opacity: 0,
@@ -279,8 +250,42 @@ export function CinematicIdleRoom({ roomId, voiceEnabled = true }: CinematicIdle
                     </span>
                 </div>
 
+                {/* Sound Wave */}
+                <div
+                    className="mt-6 flex items-center justify-center gap-[6px]"
+                    style={{
+                        animation: "cinematicFadeInDelay 2.2s ease-out forwards",
+                        opacity: 0,
+                    }}
+                >
+                    {Array.from({ length: WAVE_BARS }).map((_, i) => {
+                        // Create a pattern for the wave height mimicking a voice wave
+                        const heights = [12, 24, 16, 32, 48, 28, 40, 52, 36, 44, 20, 32, 24, 16, 12];
+                        const h = heights[i % heights.length];
+
+                        return (
+                            <div
+                                key={i}
+                                style={{
+                                    width: 4,
+                                    height: h,
+                                    borderRadius: 2,
+                                    background: "rgba(255,255,255,0.25)",
+                                    boxShadow: "0 0 8px rgba(255,255,255,0.1)",
+                                    animation: prefersReducedMotion.current
+                                        ? "none"
+                                        : `soundWaveBreath 2.4s ease-in-out infinite`,
+                                    animationDelay: `${i * 0.1}s`,
+                                    transformOrigin: "center",
+                                    opacity: 0.8,
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+
                 {/* Invite CTA */}
-                <div className="relative mt-8" style={{
+                <div className="relative mt-10" style={{
                     animation: "cinematicFadeInDelay 2.5s ease-out forwards",
                     opacity: 0,
                 }}>

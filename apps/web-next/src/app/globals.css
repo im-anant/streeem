@@ -76,6 +76,18 @@ body {
   }
 }
 
+@keyframes button-ripple-effect {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.25;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
 /* Scrollbar hide utility */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;

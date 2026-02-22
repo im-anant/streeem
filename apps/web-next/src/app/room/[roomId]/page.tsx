@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Share2, Copy } from "lucide-react";
+import { Share2, Copy, Check } from "lucide-react";
 import Link from "next/link";
 import { VideoGrid } from "@/components/VideoGrid";
 import { StreemDock } from "@/components/StreemDock";
@@ -22,6 +22,53 @@ import { twMerge } from "tailwind-merge";
 
 function cn(...inputs: (string | undefined | null | false)[]) {
     return twMerge(clsx(inputs));
+}
+
+function RippleButton({ children, className, style, onClick }: { children: React.ReactNode, className?: string, style?: React.CSSProperties, onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void }) {
+    const [ripples, setRipples] = useState<{ x: number, y: number, id: number }[]>([]);
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const newRipple = { x, y, id: Date.now() };
+        setRipples(prev => [...prev, newRipple]);
+
+        setTimeout(() => {
+            setRipples(prev => prev.filter(r => r.id !== newRipple.id));
+        }, 700);
+
+        onClick?.(e);
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            className={cn("relative overflow-hidden", className)}
+            style={style}
+        >
+            <span className="relative z-10 flex items-center gap-2 w-full h-full justify-center">
+                {children}
+            </span>
+            {ripples.map(r => (
+                <span
+                    key={r.id}
+                    className="absolute rounded-full pointer-events-none"
+                    style={{
+                        left: r.x,
+                        top: r.y,
+                        width: "120px",
+                        height: "120px",
+                        background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 70%)",
+                        transform: "translate(-50%, -50%) scale(0)",
+                        animation: "button-ripple-effect 0.6s ease-out forwards",
+                        zIndex: 0,
+                    }}
+                />
+            ))}
+        </button>
+    );
 }
 
 export default function RoomPage() {
@@ -49,6 +96,8 @@ export default function RoomPage() {
     const [isReactionPanelOpen, setIsReactionPanelOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
     const [dockVisible, setDockVisible] = useState(true);
+    const [linkCopied, setLinkCopied] = useState(false);
+    const [codeCopied, setCodeCopied] = useState(false);
     const [gestureEnabled, setGestureEnabled] = useState(() => {
         if (typeof window !== "undefined") {
             return localStorage.getItem("streeem_gesture_enabled") !== "false";
@@ -209,21 +258,61 @@ export default function RoomPage() {
             )}
 
             {/* Top Right: Share Info */}
-            <div className="absolute top-4 right-4 z-[60] flex items-center gap-2">
-                <button
-                    onClick={() => navigator.clipboard.writeText(window.location.href)}
-                    className="bg-zinc-800/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-zinc-700 transition-colors"
+            <div className="absolute top-4 right-4 z-[60] flex items-center gap-3">
+                <RippleButton
+                    onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2000);
+                    }}
+                    className="px-4 py-2 rounded-full text-xs font-medium text-white transition-all duration-200 hover:scale-105 active:scale-95"
+                    style={{
+                        background: "rgba(255,255,255,0.08)",
+                        backdropFilter: "blur(16px)",
+                        WebkitBackdropFilter: "blur(16px)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        boxShadow: "0 0 20px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.3)",
+                    }}
                 >
-                    <Share2 className="w-3 h-3" />
-                    <span className="font-medium hidden sm:inline">Share Link</span>
-                </button>
-                <button
-                    onClick={() => navigator.clipboard.writeText(roomId)}
-                    className="bg-zinc-800/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 hover:bg-zinc-700 transition-colors"
+                    {linkCopied ? (
+                        <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="hidden sm:inline">Link Copied!</span>
+                        </>
+                    ) : (
+                        <>
+                            <Share2 className="w-3 h-3 text-indigo-300" />
+                            <span className="hidden sm:inline">Share Link</span>
+                        </>
+                    )}
+                </RippleButton>
+                <RippleButton
+                    onClick={() => {
+                        navigator.clipboard.writeText(roomId);
+                        setCodeCopied(true);
+                        setTimeout(() => setCodeCopied(false), 2000);
+                    }}
+                    className="px-4 py-2 rounded-full text-xs font-medium text-white transition-all duration-200 hover:scale-105 active:scale-95"
+                    style={{
+                        background: "rgba(255,255,255,0.08)",
+                        backdropFilter: "blur(16px)",
+                        WebkitBackdropFilter: "blur(16px)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        boxShadow: "0 0 20px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.3)",
+                    }}
                 >
-                    <Copy className="w-3 h-3" />
-                    <span className="font-medium hidden sm:inline">Code: {roomId}</span>
-                </button>
+                    {codeCopied ? (
+                        <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="hidden sm:inline">Code Copied!</span>
+                        </>
+                    ) : (
+                        <>
+                            <Copy className="w-3 h-3 text-indigo-300" />
+                            <span className="hidden sm:inline">Code: {roomId}</span>
+                        </>
+                    )}
+                </RippleButton>
             </div>
 
             {/* --- LAYOUT RENDERING --- */}
