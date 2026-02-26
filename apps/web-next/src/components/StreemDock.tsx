@@ -22,6 +22,7 @@ interface StreemDockProps {
     sidebarOpen: boolean;
     chatOpen: boolean;
     reactionsOpen: boolean;
+    unreadCount?: number;
     onDockVisibilityChange?: (visible: boolean) => void;
 }
 
@@ -57,6 +58,7 @@ export function StreemDock({
     sidebarOpen,
     chatOpen,
     reactionsOpen,
+    unreadCount = 0,
     onDockVisibilityChange,
 }: StreemDockProps) {
     const {
@@ -92,7 +94,7 @@ export function StreemDock({
     const isVideoOff = !localUser.hasVideo;
 
     // Check if any panel is open (guard against hiding)
-    const hasOpenMenu = sidebarOpen || chatOpen || reactionsOpen;
+    const hasOpenMenu = sidebarOpen || reactionsOpen;
 
     // Inactivity delay: 5s during screen share, 3s normally
     const HIDE_DELAY = isScreenSharing ? 5000 : 3000;
@@ -449,6 +451,11 @@ export function StreemDock({
                             }}
                         >
                             {renderIcon(icon.id)}
+                            {icon.id === "chat" && unreadCount > 0 && !chatOpen && (
+                                <span key={unreadCount} className="chat-unread-badge">
+                                    {unreadCount > 9 ? "9+" : unreadCount}
+                                </span>
+                            )}
                             <span className="dock-tooltip">{icon.label}</span>
                         </div>
                     );

@@ -12,7 +12,7 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import { StreamInputModal } from "@/components/StreamInputModal";
 import { useRoom } from "@/contexts/RoomContext";
 import { VideoCard } from "@/components/VideoCard";
-import { ChatWidget } from "@/components/ChatWidget";
+import { ChatOverlay } from "@/components/ChatOverlay";
 import { ReactionPanel } from "@/components/ReactionPanel";
 import { CinematicIdleRoom } from "@/components/CinematicIdleRoom";
 import { TileReactionCanvasHandle } from "@/components/TileReactionCanvas";
@@ -86,6 +86,7 @@ export default function RoomPage() {
         sendReaction,
         incomingReactions,
         localStream,
+        messages,
         mediaError,
         roomError
     } = useRoom();
@@ -453,7 +454,7 @@ export default function RoomPage() {
             {/* Streeem Dock — macOS-style auto-hiding controls */}
             <StreemDock
                 onStartStream={() => setStreamModalOpen(true)}
-                onToggleChat={() => setIsChatOpen((prev) => !prev)}
+                onToggleChat={() => setIsChatOpen(prev => !prev)}
                 onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
                 onToggleReactions={() => setIsReactionPanelOpen((prev) => !prev)}
                 sidebarOpen={sidebarOpen}
@@ -503,10 +504,12 @@ export default function RoomPage() {
                 </aside>
             )}
 
-            {/* Floating Chat Widget */}
-            <ChatWidget
-                isOpen={isChatOpen}
-                onClose={() => setIsChatOpen(false)}
+            {/* Overlay Chat v2.1 — input pill + floating message pills */}
+            <ChatOverlay
+                localUserId={localUser?.id}
+                dockVisible={dockVisible}
+                chatOpen={isChatOpen}
+                onToggleChat={() => setIsChatOpen(prev => !prev)}
             />
 
             {/* Modals */}

@@ -64,5 +64,11 @@
     "files": [
       "static/chunks/reactPlayerYouTube.js"
     ]
+  },
+  "components/ChatOverlay.tsx -> emoji-picker-element": {
+    "id": "components/ChatOverlay.tsx -> emoji-picker-element",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_emoji-picker-element_index_js.js"
+    ]
   }
 }

@@ -6,6 +6,7 @@ import { WS_PROTOCOL_VERSION, ClientInfo, C2S, S2C, PlaybackState } from "@strea
 
 interface ChatMessage {
     id: string;
+    userId: string;
     sender: string;
     text: string;
     timestamp: string;
@@ -471,6 +472,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     const handleChatMessage = (payload: { from: ClientInfo; text: string; tsMs: number }) => {
         setMessages((prev: ChatMessage[]) => [...prev, {
             id: `msg_${payload.tsMs}`,
+            userId: payload.from.userId,
             sender: payload.from.displayName,
             text: payload.text,
             timestamp: new Date(payload.tsMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
