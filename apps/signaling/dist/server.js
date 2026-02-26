@@ -108,11 +108,18 @@ wss.on("connection", (ws) => {
         switch (msg.type) {
             case "room/join": {
                 const { roomId, client } = msg.payload;
-                // CRITICAL CHANGE: Only join if room exists
-                const room = rooms.get(roomId);
+                // Auto-create room if it doesn't exist (handles race where room was
+                // cleaned up between link share and second user joining)
+                let room = rooms.get(roomId);
                 if (!room) {
-                    send(ws, errorMsg(requestId, "room_not_found", "Room does not exist"));
-                    return;
+                    room = { connsByUserId: new Map() };
+                    rooms.set(roomId, room);
+                    console.log(`[signaling] Auto-created room ${roomId} on join`);
+                }
+                // Cancel any pending cleanup timer
+                if (room._cleanupTimer) {
+                    clearTimeout(room._cleanupTimer);
+                    delete room._cleanupTimer;
                 }
                 // If reconnecting / duplicate, close previous
                 const existing = room.connsByUserId.get(client.userId);
@@ -321,9 +328,18 @@ function leaveRoom(conn, roomId) {
         type: "room/peer_left",
         payload: { roomId, userId: conn.user.userId }
     });
-    // Clean up empty rooms
-    if (room.connsByUserId.size === 0)
-        rooms.delete(roomId);
+    // Delay-clean empty rooms — 5 minute grace period so second user can still join
+    if (room.connsByUserId.size === 0) {
+        const ROOM_TTL_MS = 5 * 60 * 1000; // 5 minutes
+        room._cleanupTimer = setTimeout(() => {
+            // Only delete if still empty
+            const r = rooms.get(roomId);
+            if (r && r.connsByUserId.size === 0) {
+                rooms.delete(roomId);
+                console.log(`[signaling] Cleaned up empty room ${roomId} after TTL`);
+            }
+        }, ROOM_TTL_MS);
+    }
     conn.roomId = undefined;
 }
 server.listen(port);

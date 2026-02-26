@@ -11,6 +11,7 @@ import { useRoom } from "@/contexts/RoomContext";
 
 // ============================================================
 // StreemDock — macOS Dock-style auto-hiding control bar
+// PRD v1.2 — Proximity-zone reveal (desktop) + tap toggle (mobile)
 // ============================================================
 
 interface StreemDockProps {
@@ -25,14 +26,14 @@ interface StreemDockProps {
 }
 
 // ---- Magnification math (PRD v1.1 — GPU-only transform:scale) ----
-const MAX_SCALE = 1.55;   // icon at cursor = 1.55× (visual ~74px, slot stays 48)
+const MAX_SCALE = 1.55;   // icon at cursor = 1.55x (visual ~74px, slot stays 48)
 const SIGMA = 38;     // Gaussian spread
 const MAG_RADIUS = 90;     // px — beyond this, no magnification
 
 function gaussian(d: number): number {
     if (d >= MAG_RADIUS) return 1;
     const g = Math.exp(-(d * d) / (2 * SIGMA * SIGMA));
-    return 1 + (MAX_SCALE - 1) * g; // 1.0 → 1.55
+    return 1 + (MAX_SCALE - 1) * g; // 1.0 -> 1.55
 }
 
 // ---- Touch detection ----
@@ -70,7 +71,12 @@ export function StreemDock({
     const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const initialShowDone = useRef(false);
     const isTouch = useRef(false);
-    const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // -- Mobile state (PRD v1.2) --
+    const mobileDockVisible = useRef(true);
+    const initialAutoHideDone = useRef(false);
+    const touchStartYRef = useRef(0);
+
     // rAF magnification state (no React state — direct DOM writes)
     const mouseXRef = useRef(0);
     const rafScheduledRef = useRef(false);
@@ -111,18 +117,23 @@ export function StreemDock({
         onDockVisibilityChange?.(dockVisible);
     }, [dockVisible, onDockVisibilityChange]);
 
+    // -- resetHideTimer — only resets the countdown, does NOT reveal dock --
     const resetHideTimer = useCallback(() => {
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-        showDock();
         hideTimerRef.current = setTimeout(() => {
             if (!dockHasFocus() && !hasOpenMenu) {
                 hideDock();
             }
         }, HIDE_DELAY);
-    }, [showDock, hideDock, dockHasFocus, hasOpenMenu, HIDE_DELAY]);
+    }, [hideDock, dockHasFocus, hasOpenMenu, HIDE_DELAY]);
 
-    // ---- Initial 3s show, then hide ----
+    // ==============================================================
+    // DESKTOP: Proximity-Zone Trigger (PRD v1.2 Part 1)
+    // ==============================================================
+
+    // -- Initial 3s show, then hide (desktop only) --
     useEffect(() => {
+        if (isTouch.current) return;
         if (initialShowDone.current) return;
         initialShowDone.current = true;
         const t = setTimeout(() => {
@@ -133,20 +144,56 @@ export function StreemDock({
         return () => clearTimeout(t);
     }, [dockHasFocus, hasOpenMenu, hideDock]);
 
-    // ---- Document-level mousemove → reset timer (desktop only) ----
+    // -- HIDE TIMER system: mousemove anywhere only resets timer --
+    // Key fix: mousemove does NOT reveal the dock — it only resets
+    // the hide countdown when the dock is already visible.
     useEffect(() => {
         if (isTouch.current) return;
-        const handler = () => resetHideTimer();
+        const handler = () => {
+            if (!dockVisible) return;   // dock hidden -> mousemove does NOTHING
+            resetHideTimer();           // dock visible -> reset the countdown
+        };
         document.addEventListener("mousemove", handler);
-        document.addEventListener("keydown", handler);
         return () => {
             document.removeEventListener("mousemove", handler);
-            document.removeEventListener("keydown", handler);
+        };
+    }, [resetHideTimer, dockVisible]);
+
+    // -- REVEAL TRIGGER: Only from proximity zone mouseenter --
+    // The proximity zone div's onMouseEnter fires handleProximityEnter.
+    const handleProximityEnter = useCallback(() => {
+        if (isTouch.current) return;
+        showDock();
+        resetHideTimer();
+    }, [showDock, resetHideTimer]);
+
+    // -- Keyboard navigation (PRD v1.2 S1.7) --
+    // focusin -> show dock, clear timer (stay visible while focused)
+    // focusout -> if focus left dock entirely, start hide timer
+    useEffect(() => {
+        const dock = dockRef.current;
+        if (!dock) return;
+
+        const handleFocusIn = () => {
+            showDock();
             if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
         };
-    }, [resetHideTimer]);
 
-    // ---- Keep visible when panel is open ----
+        const handleFocusOut = (e: FocusEvent) => {
+            if (!dock.contains(e.relatedTarget as Node)) {
+                resetHideTimer();
+            }
+        };
+
+        dock.addEventListener("focusin", handleFocusIn);
+        dock.addEventListener("focusout", handleFocusOut);
+        return () => {
+            dock.removeEventListener("focusin", handleFocusIn);
+            dock.removeEventListener("focusout", handleFocusOut);
+        };
+    }, [showDock, resetHideTimer]);
+
+    // -- Keep visible when panel is open --
     useEffect(() => {
         if (hasOpenMenu) {
             showDock();
@@ -154,22 +201,68 @@ export function StreemDock({
         }
     }, [hasOpenMenu, showDock]);
 
-    // ---- Mobile: tap-anywhere to reveal ----
+    // ==============================================================
+    // MOBILE: Tap-Anywhere Toggle (PRD v1.2 Part 2)
+    // ==============================================================
+
+    // -- Initial 4s auto-hide (one-time only) --
     useEffect(() => {
         if (!isTouch.current) return;
-        const handler = () => {
-            showDock();
-            if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
-            touchTimerRef.current = setTimeout(() => {
-                if (!hasOpenMenu) hideDock();
-            }, 5000);
+        if (initialAutoHideDone.current) return;
+
+        const t = setTimeout(() => {
+            hideDock();
+            mobileDockVisible.current = false;
+            initialAutoHideDone.current = true;
+        }, 4000);
+        return () => clearTimeout(t);
+    }, [hideDock]);
+
+    // -- Tap-anywhere toggle --
+    // touchstart: record Y for scroll detection
+    // touchend: if clean tap (deltaY <= 10px) on content area -> toggle dock
+    useEffect(() => {
+        if (!isTouch.current) return;
+
+        const handleTouchStart = (e: TouchEvent) => {
+            touchStartYRef.current = e.changedTouches[0].clientY;
         };
-        document.addEventListener("touchstart", handler);
+
+        const handleTouchEnd = (e: TouchEvent) => {
+            if (!initialAutoHideDone.current) return; // ignore during first 4s
+
+            const touchEndY = e.changedTouches[0].clientY;
+            const deltaY = Math.abs(touchEndY - touchStartYRef.current);
+
+            // Scroll gesture — ignore
+            if (deltaY > 10) return;
+
+            // Tap on dock itself — let button handle it, don't toggle
+            if (dockRef.current && dockRef.current.contains(e.target as Node)) return;
+
+            // Tap on PiP tile — let PiP handle it
+            const pipTile = document.querySelector(".pip-tile");
+            if (pipTile && pipTile.contains(e.target as Node)) return;
+
+            // Clean content-area tap — toggle
+            if (mobileDockVisible.current) {
+                // Hide dock
+                setDockVisible(false);
+                mobileDockVisible.current = false;
+            } else {
+                // Show dock — NO auto-hide timer after manual reveal
+                setDockVisible(true);
+                mobileDockVisible.current = true;
+            }
+        };
+
+        document.addEventListener("touchstart", handleTouchStart, { passive: true });
+        document.addEventListener("touchend", handleTouchEnd);
         return () => {
-            document.removeEventListener("touchstart", handler);
-            if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+            document.removeEventListener("touchstart", handleTouchStart);
+            document.removeEventListener("touchend", handleTouchEnd);
         };
-    }, [showDock, hideDock, hasOpenMenu]);
+    }, []);
 
     // ---- rAF-throttled Gaussian magnification (PRD v1.1) ----
     const applyMagnification = useCallback(() => {
@@ -210,7 +303,9 @@ export function StreemDock({
             rafScheduledRef.current = true;
             requestAnimationFrame(applyMagnification);
         }
-    }, [applyMagnification]);
+        // Reset hide timer while hovering over dock icons
+        resetHideTimer();
+    }, [applyMagnification, resetHideTimer]);
 
     const handleDockMouseLeave = useCallback(() => {
         const dock = dockRef.current;
@@ -307,13 +402,15 @@ export function StreemDock({
 
     return (
         <>
-            {/* ─── Hover Trigger Zone (desktop only) ─── */}
+            {/* --- Proximity Zone (desktop only, PRD v1.2 S1.3) --- */}
+            {/* 120px tall invisible zone at bottom of viewport.
+                mouseenter = the ONLY way to reveal the dock when hidden. */}
             <div
-                className="dock-trigger-zone"
-                onMouseEnter={showDock}
+                className="dock-proximity-zone"
+                onMouseEnter={handleProximityEnter}
             />
 
-            {/* ─── Status Strip (visible when dock hidden) ─── */}
+            {/* --- Status Strip (visible when dock hidden) --- */}
             <div
                 className={`dock-status-strip ${!dockVisible ? "visible" : ""}`}
                 onClick={showDock}
@@ -322,13 +419,12 @@ export function StreemDock({
                 {isScreenSharing && <div className="status-dot sharing" />}
             </div>
 
-            {/* ─── Dock ─── */}
+            {/* --- Dock --- */}
             <div
                 ref={dockRef}
                 className={`streeem-dock scrollbar-hide ${!dockVisible ? "dock-hidden" : ""}`}
                 onMouseMove={handleDockMouseMove}
                 onMouseLeave={handleDockMouseLeave}
-                onFocus={showDock}
             >
                 {icons.map((icon, i) => {
                     return (

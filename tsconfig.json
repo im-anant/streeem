@@ -22,9 +22,6 @@
       "path": "./apps/signaling"
     },
     {
-      "path": "./apps/web"
-    },
-    {
       "path": "./apps/web-next"
     }
   ]

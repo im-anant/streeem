@@ -4,14 +4,14 @@ import crypto from 'crypto';
 
 // Free TURN fallback — Open Relay Project (metered.ca)
 const OPEN_RELAY_FALLBACK = {
-    username: "e8dd65b92a0cfa69a58e82ff",
-    credential: "RHJnClurMC/FqFnl",
+    username: "openrelayproject",
+    credential: "openrelayproject",
     urls: [
-        "turn:a.relay.metered.ca:80",
-        "turn:a.relay.metered.ca:80?transport=tcp",
-        "turn:a.relay.metered.ca:443",
-        "turn:a.relay.metered.ca:443?transport=tcp",
-        "turns:a.relay.metered.ca:443",
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:80?transport=tcp",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+        "turns:openrelay.metered.ca:443",
     ],
 };
 

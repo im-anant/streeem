@@ -74,14 +74,14 @@ const getBaseIceServers = (): RTCIceServer[] => {
     // Covers UDP, TCP, and TLS on ports 80 & 443 to bypass corporate firewalls.
     servers.push({
         urls: [
-            "turn:a.relay.metered.ca:80",
-            "turn:a.relay.metered.ca:80?transport=tcp",
-            "turn:a.relay.metered.ca:443",
-            "turn:a.relay.metered.ca:443?transport=tcp",
-            "turns:a.relay.metered.ca:443",
+            "turn:openrelay.metered.ca:80",
+            "turn:openrelay.metered.ca:80?transport=tcp",
+            "turn:openrelay.metered.ca:443",
+            "turn:openrelay.metered.ca:443?transport=tcp",
+            "turns:openrelay.metered.ca:443",
         ],
-        username: "e8dd65b92a0cfa69a58e82ff",
-        credential: "RHJnClurMC/FqFnl",
+        username: "openrelayproject",
+        credential: "openrelayproject",
     });
 
     // --- Optional: env-configured TURN (takes priority when configured) ---
@@ -228,7 +228,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
         console.log(`[WebRTC] Flushing ${pending.length} pending ICE candidates for ${targetUserId}`);
         for (const candidate of pending) {
             try {
-                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                const rtCandidate = new RTCIceCandidate(candidate);
+                await pc.addIceCandidate(rtCandidate);
+                console.log(`[WebRTC] Successfully added buffered remote ICE candidate for ${targetUserId} (${rtCandidate.candidate})`);
             } catch (e) {
                 console.error("[WebRTC] Error adding buffered ICE candidate", e);
             }
@@ -438,7 +440,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
         if (pc && pc.remoteDescription) {
             // PC exists and remoteDescription is set — safe to add immediately
             try {
-                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                const rtCandidate = new RTCIceCandidate(payload.candidate);
+                await pc.addIceCandidate(rtCandidate);
+                console.log(`[WebRTC] Successfully added remote ICE candidate from ${payload.fromUserId} (${rtCandidate.candidate})`);
             } catch (e) {
                 console.error("[WebRTC] Error adding ICE candidate", e);
             }
