@@ -5,8 +5,9 @@ import {
 } from "react";
 import {
     Mic, MicOff, Video, VideoOff, MonitorUp,
-    MessageSquare, PhoneOff, Play, Camera, Users, Smile,
+    MessageSquare, PhoneOff, Play, Camera, Users, Smile, Gamepad2,
 } from "lucide-react";
+import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { useRoom } from "@/contexts/RoomContext";
 
 // ============================================================
@@ -19,9 +20,11 @@ interface StreemDockProps {
     onToggleChat: () => void;
     onToggleSidebar: () => void;
     onToggleReactions: () => void;
+    onToggleGame?: () => void;
     sidebarOpen: boolean;
     chatOpen: boolean;
     reactionsOpen: boolean;
+    gameOpen?: boolean;
     unreadCount?: number;
     onDockVisibilityChange?: (visible: boolean) => void;
 }
@@ -55,9 +58,11 @@ export function StreemDock({
     onToggleChat,
     onToggleSidebar,
     onToggleReactions,
+    onToggleGame,
     sidebarOpen,
     chatOpen,
     reactionsOpen,
+    gameOpen = false,
     unreadCount = 0,
     onDockVisibilityChange,
 }: StreemDockProps) {
@@ -333,6 +338,7 @@ export function StreemDock({
         { id: "participants", label: "Participants" },
         { id: "chat", label: "Chat" },
         { id: "reactions", label: "Reactions" },
+        ...(FEATURE_FLAGS.GAME_ENABLED ? [{ id: "game", label: "Play Game" }] : []),
         { id: "endcall", label: "End Call", noMagnify: true },
     ] as DockIconDef[], [isMuted, isVideoOff]);
 
@@ -347,6 +353,7 @@ export function StreemDock({
             case "participants": onToggleSidebar(); break;
             case "chat": onToggleChat(); break;
             case "reactions": onToggleReactions(); break;
+            case "game": onToggleGame?.(); break;
             case "endcall":
                 leaveRoom();
                 window.location.href = "/";
@@ -356,7 +363,7 @@ export function StreemDock({
         if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
         }
-    }, [toggleMute, toggleVideo, switchCamera, toggleScreenShare, onStartStream, onToggleSidebar, onToggleChat, onToggleReactions, leaveRoom]);
+    }, [toggleMute, toggleVideo, switchCamera, toggleScreenShare, onStartStream, onToggleSidebar, onToggleChat, onToggleReactions, onToggleGame, leaveRoom]);
 
     // ---- Render icon content ----
     const renderIcon = (id: string) => {
@@ -370,6 +377,7 @@ export function StreemDock({
             case "participants": return <Users className={cls} />;
             case "chat": return <MessageSquare className={cls} />;
             case "reactions": return <Smile className={cls} />;
+            case "game": return <Gamepad2 className={cls} />;
             case "endcall": return <PhoneOff className={cls} />;
             default: return null;
         }
@@ -384,6 +392,7 @@ export function StreemDock({
             case "participants": return sidebarOpen ? "background: rgba(99,102,241,0.2)" : "";
             case "chat": return chatOpen ? "background: rgba(99,102,241,0.2)" : "";
             case "reactions": return reactionsOpen ? "background: rgba(234,179,8,0.2)" : "";
+            case "game": return gameOpen ? "background: rgba(99,102,241,0.2)" : "";
             case "endcall": return "background: rgba(239,68,68,0.9)";
             default: return "";
         }
@@ -397,6 +406,7 @@ export function StreemDock({
             case "participants": return sidebarOpen ? "color: #A5B4FC" : "";
             case "chat": return chatOpen ? "color: #A5B4FC" : "";
             case "reactions": return reactionsOpen ? "color: #FDE047" : "";
+            case "game": return gameOpen ? "color: #818CF8" : "";
             case "endcall": return "color: white";
             default: return "";
         }
