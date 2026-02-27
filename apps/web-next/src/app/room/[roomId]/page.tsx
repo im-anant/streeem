@@ -19,6 +19,8 @@ import { TileReactionCanvasHandle } from "@/components/TileReactionCanvas";
 import { useGestureDetection, type GestureEvent } from "@/hooks/useGestureDetection";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { FEATURE_FLAGS } from "@/config/featureFlags";
+import { GameOverlay } from "@/features/app/GameOverlay";
 
 function cn(...inputs: (string | undefined | null | false)[]) {
     return twMerge(clsx(inputs));
@@ -96,6 +98,7 @@ export default function RoomPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isReactionPanelOpen, setIsReactionPanelOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
+    const [appOpen, setAppOpen] = useState(false);
     const [dockVisible, setDockVisible] = useState(true);
     const [linkCopied, setLinkCopied] = useState(false);
     const [codeCopied, setCodeCopied] = useState(false);
@@ -457,9 +460,11 @@ export default function RoomPage() {
                 onToggleChat={() => setIsChatOpen(prev => !prev)}
                 onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
                 onToggleReactions={() => setIsReactionPanelOpen((prev) => !prev)}
+                onToggleApp={() => setAppOpen((prev) => !prev)}
                 sidebarOpen={sidebarOpen}
                 chatOpen={isChatOpen}
                 reactionsOpen={isReactionPanelOpen}
+                appOpen={appOpen}
                 onDockVisibilityChange={setDockVisible}
             />
 
@@ -518,6 +523,14 @@ export default function RoomPage() {
                 onClose={() => setStreamModalOpen(false)}
                 onSubmit={(url) => setStreamUrl(url)}
             />
+
+            {/* App Overlay — features/index.html */}
+            {FEATURE_FLAGS.APP_ENABLED && (
+                <GameOverlay
+                    isOpen={appOpen}
+                    onClose={() => setAppOpen(false)}
+                />
+            )}
 
             {/* Hidden video for gesture detection */}
             <video
