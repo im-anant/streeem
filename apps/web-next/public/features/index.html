@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Super Hopper</title>
@@ -10,6 +11,7 @@
   <!-- CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
   <div id="game-container"></div>
@@ -39,6 +41,13 @@
       </p>
       <button id="restart-btn">TRY AGAIN</button>
     </div>
+
+    <!-- Touch Controls -->
+    <div id="touch-controls" class="hidden">
+      <button class="touch-btn" id="btn-left">&#8592;</button>
+      <button class="touch-btn touch-jump" id="btn-jump">&#8593;</button>
+      <button class="touch-btn" id="btn-right">&#8594;</button>
+    </div>
   </div>
 
   <!-- Import map -->
@@ -55,4 +64,5 @@
   <script type="module" src="script.js"></script>
 
 </body>
+
 </html>

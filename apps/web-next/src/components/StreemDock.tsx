@@ -339,7 +339,7 @@ export function StreemDock({
         { id: "participants", label: "Participants" },
         { id: "chat", label: "Chat" },
         { id: "reactions", label: "Reactions" },
-        ...(FEATURE_FLAGS.APP_ENABLED ? [{ id: "app", label: "Play Game", className: "hidden md:flex" }] : []),
+        ...(FEATURE_FLAGS.APP_ENABLED ? [{ id: "app", label: "Play Game" }] : []),
         { id: "endcall", label: "End Call", noMagnify: true },
     ] as DockIconDef[], [isMuted, isVideoOff]);
 

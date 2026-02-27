@@ -31,6 +31,10 @@ const elScoreFinal = document.getElementById("final-score");
 const uiScore = document.getElementById("score-display");
 const uiStart = document.getElementById("start-screen");
 const uiGameOver = document.getElementById("game-over-screen");
+const touchControls = document.getElementById("touch-controls");
+const btnLeft = document.getElementById("btn-left");
+const btnRight = document.getElementById("btn-right");
+const btnJump = document.getElementById("btn-jump");
 
 // --- THREE.JS GLOBALS ---
 let scene,
@@ -128,6 +132,28 @@ function init() {
 	// UI Handlers
 	document.getElementById("start-btn").addEventListener("click", startGame);
 	document.getElementById("restart-btn").addEventListener("click", startGame);
+
+	// Touch Controls
+	btnLeft.addEventListener("touchstart", (e) => {
+		e.preventDefault();
+		if (!state.isPlaying) return;
+		if (state.lane > -1) state.lane--;
+	}, { passive: false });
+
+	btnRight.addEventListener("touchstart", (e) => {
+		e.preventDefault();
+		if (!state.isPlaying) return;
+		if (state.lane < 1) state.lane++;
+	}, { passive: false });
+
+	btnJump.addEventListener("touchstart", (e) => {
+		e.preventDefault();
+		if (!state.isPlaying) return;
+		if (!state.isJumping) {
+			state.isJumping = true;
+			state.jumpVel = CONFIG.jumpPower;
+		}
+	}, { passive: false });
 }
 
 function onWindowResize() {
@@ -326,6 +352,10 @@ function startGame() {
 	uiScore.classList.remove("hidden");
 	elScore.innerText = "0";
 
+	if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+		touchControls.classList.remove("hidden");
+	}
+
 	// Environment Setup
 	scene.background = new THREE.Color(state.theme.sky);
 	scene.fog = new THREE.Fog(state.theme.sky, 30, 90);
@@ -375,6 +405,7 @@ function gameOver() {
 	state.isPlaying = false;
 	uiGameOver.classList.remove("hidden");
 	uiScore.classList.add("hidden");
+	touchControls.classList.add("hidden");
 	elScoreFinal.innerText = Math.floor(state.score);
 }
 
