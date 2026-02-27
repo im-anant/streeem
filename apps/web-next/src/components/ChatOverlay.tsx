@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Send, Smile } from "lucide-react";
 import { useRoom } from "@/contexts/RoomContext";
 
@@ -84,36 +85,12 @@ export function ChatOverlay({ localUserId, dockVisible, chatOpen, onToggleChat }
 
     // Emoji picker
     const [emojiOpen, setEmojiOpen] = useState(false);
+    const [emojiAnimating, setEmojiAnimating] = useState(false);  // exit animation
     const emojiWrapRef = useRef<HTMLDivElement>(null);
     const emojiBtnRef = useRef<HTMLButtonElement>(null);
 
-    // ── Dynamic PiP positioning ──
-    const [inputBottom, setInputBottom] = useState(118);
-
-    const updateStack = useCallback(() => {
-        const pip = document.querySelector('.pip-tile') as HTMLElement | null;
-        let bottom: number;
-        if (pip && pip.offsetParent !== null) {
-            const rect = pip.getBoundingClientRect();
-            bottom = window.innerHeight - rect.top + 12;
-        } else {
-            bottom = dockVisible ? 92 : 24;
-        }
-        setInputBottom(bottom);
-    }, [dockVisible]);
-
-    useEffect(() => {
-        updateStack();
-        window.addEventListener('resize', updateStack);
-        const id = setInterval(updateStack, 1000);
-        const pip = document.querySelector('.pip-tile');
-        pip?.addEventListener('transitionend', updateStack);
-        return () => {
-            window.removeEventListener('resize', updateStack);
-            clearInterval(id);
-            pip?.removeEventListener('transitionend', updateStack);
-        };
-    }, [updateStack]);
+    // ── Fixed input pill position — independent of PiP tile and dock ──
+    const inputBottom = 190;
 
     const overlayBottom = inputBottom + 44 + 8;
 
@@ -131,11 +108,9 @@ export function ChatOverlay({ localUserId, dockVisible, chatOpen, onToggleChat }
         if (chatOpen) setTimeout(() => inputRef.current?.focus(), 80);
     }, [chatOpen]);
 
-    // ── Clear pills when chat closes ──
+    // ── Reset scroll mode when chat closes (messages stay — PRD v2.2 Fix 1) ──
     useEffect(() => {
         if (!chatOpen) {
-            // Fade out live pills when chat is closed
-            setLivePills([]);
             setScrollMode(false);
         }
     }, [chatOpen]);
@@ -275,8 +250,8 @@ export function ChatOverlay({ localUserId, dockVisible, chatOpen, onToggleChat }
         inputRef.current?.focus();
     };
 
-    // Don't render overlay zone if no pills and not in scroll mode
-    const hasContent = livePills.length > 0 || scrollMode;
+    // Messages survive in state but hide/show with chat toggle
+    const hasContent = chatOpen && (livePills.length > 0 || scrollMode);
 
     return (
         <>
@@ -363,7 +338,20 @@ export function ChatOverlay({ localUserId, dockVisible, chatOpen, onToggleChat }
                     ref={emojiBtnRef}
                     type="button"
                     className="chat-input-pill__emoji"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEmojiOpen(v => !v); }}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (emojiOpen) {
+                            // Trigger exit animation
+                            setEmojiAnimating(true);
+                            setTimeout(() => {
+                                setEmojiOpen(false);
+                                setEmojiAnimating(false);
+                            }, 150);
+                        } else {
+                            setEmojiOpen(true);
+                        }
+                    }}
                     aria-label="Emoji"
                 >
                     <Smile style={{ width: 20, height: 20 }} />
@@ -378,16 +366,24 @@ export function ChatOverlay({ localUserId, dockVisible, chatOpen, onToggleChat }
                 </button>
             </form>
 
-            {/* ── Emoji Picker ── */}
-            {emojiOpen && (
+            {/* ── Emoji Picker — rendered via portal at body level (PRD v2.2 Fix 2b) ── */}
+            {emojiOpen && typeof document !== 'undefined' && createPortal(
                 <div
                     ref={emojiWrapRef}
                     className="chat-emoji-picker-wrapper"
-                    style={{ position: 'fixed', right: 16, bottom: inputBottom + 52, zIndex: 300 }}
+                    style={{
+                        position: 'fixed',
+                        right: 16,
+                        bottom: inputBottom + 52,
+                        zIndex: 500,
+                    }}
                 >
                     {/* @ts-ignore */}
-                    <emoji-picker class="chat-emoji-picker"></emoji-picker>
-                </div>
+                    <emoji-picker
+                        class={`chat-emoji-picker ${emojiAnimating ? 'exiting' : 'entering'}`}
+                    ></emoji-picker>
+                </div>,
+                document.body
             )}
         </>
     );
