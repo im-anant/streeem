@@ -181,3 +181,37 @@ button:hover {
 		display: none !important;
 	}
 }
+
+/* ── Mobile Layout Fixes ── */
+@media (max-width: 600px) {
+	.center-screen {
+		width: 90%;
+		padding: 1.5rem 1rem;
+	}
+
+	.title {
+		font-size: 3.5rem;
+		text-shadow: 3px 3px #ff6b6b;
+	}
+
+	.subtitle {
+		font-size: 1.5rem;
+		margin-bottom: 1.5rem;
+	}
+
+	button {
+		font-size: 1.5rem;
+		padding: 0.8rem 1.5rem;
+	}
+
+	#instructions {
+		/* Hide keyboard instructions on mobile */
+		display: none !important;
+	}
+
+	#score-display {
+		font-size: 2rem;
+		top: 10px;
+		left: 10px;
+	}
+}
