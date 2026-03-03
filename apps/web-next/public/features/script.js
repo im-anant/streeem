@@ -191,7 +191,7 @@ function createPlayer() {
 	group.add(body);
 
 	// Eyes
-	const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+	const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 	const eyeGeo = new THREE.BoxGeometry(0.15, 0.15, 0.05);
 
 	const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
