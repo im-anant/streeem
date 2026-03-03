@@ -15,11 +15,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/room/[roomId]/page.js"
-    ],
-    "/api/turn-credentials/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/turn-credentials/route.js"
     ]
   }
 }

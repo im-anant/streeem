@@ -358,7 +358,7 @@ function startGame() {
 
 	// Environment Setup
 	scene.background = new THREE.Color(state.theme.sky);
-	scene.fog = new THREE.Fog(state.theme.sky, 30, 90);
+	scene.fog = new THREE.Fog(state.theme.sky, 10, 40);
 
 	// Floor
 	// Remove old floor if any
