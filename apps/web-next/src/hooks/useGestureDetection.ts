@@ -8,7 +8,14 @@ import { useEffect, useRef, useState } from "react";
 // Fire-once, reset gate, hand-anchored origin
 // ============================================================
 
-export type GestureLabel = "hearts" | "balloons" | "confetti" | "firecracker";
+export type GestureLabel =
+    | "hearts"
+    | "balloons"
+    | "confetti"
+    | "fireworks"
+    | "laser"
+    | "thumbs_up"
+    | "thumbs_down";
 
 export interface GestureEvent {
     gesture: GestureLabel;
@@ -109,12 +116,37 @@ function classify(hands: Hand[]): ClassifyResult | null {
     // One-hand gestures
     const h = hands[0];
 
-    // Peace sign — UNMAPPED (laser removed in v4)
-
-    // FIRECRACKER (rock on)
+    // FIREWORKS (rock on — index + pinky up, middle + ring curled)
     if (ext(h, INDEX_TIP, INDEX_MCP) && ext(h, PINKY_TIP, PINKY_MCP) &&
         curl(h, MIDDLE_TIP, MIDDLE_PIP) && curl(h, RING_TIP, RING_PIP)) {
-        return { label: "firecracker", origin: palmCenter(h) };
+        return { label: "fireworks", origin: palmCenter(h) };
+    }
+
+    // LASER — peace sign (index + middle up, ring + pinky + thumb curled)
+    if (
+        ext(h, INDEX_TIP, INDEX_MCP) && ext(h, MIDDLE_TIP, MIDDLE_MCP) &&
+        curl(h, RING_TIP, RING_PIP) && curl(h, PINKY_TIP, PINKY_PIP) &&
+        curl(h, THUMB_TIP, THUMB_MCP)
+    ) {
+        return { label: "laser", origin: palmCenter(h) };
+    }
+
+    // THUMBS UP — single hand, thumb extended upward, all fingers curled
+    if (
+        h[THUMB_TIP].y < h[WRIST].y &&
+        curl(h, INDEX_TIP, INDEX_PIP) && curl(h, MIDDLE_TIP, MIDDLE_PIP) &&
+        curl(h, RING_TIP, RING_PIP) && curl(h, PINKY_TIP, PINKY_PIP)
+    ) {
+        return { label: "thumbs_up", origin: palmCenter(h) };
+    }
+
+    // THUMBS DOWN — single hand, thumb pointing downward, all fingers curled
+    if (
+        h[THUMB_TIP].y > h[WRIST].y &&
+        curl(h, INDEX_TIP, INDEX_PIP) && curl(h, MIDDLE_TIP, MIDDLE_PIP) &&
+        curl(h, RING_TIP, RING_PIP) && curl(h, PINKY_TIP, PINKY_PIP)
+    ) {
+        return { label: "thumbs_down", origin: palmCenter(h) };
     }
 
     return null;

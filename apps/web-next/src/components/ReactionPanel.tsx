@@ -13,7 +13,10 @@ const REACTIONS = [
     { emoji: "❤️", label: "hearts", name: "Hearts" },
     { emoji: "🎈", label: "balloons", name: "Balloons" },
     { emoji: "🎊", label: "confetti", name: "Confetti" },
-    { emoji: "🎆", label: "firecracker", name: "Firecracker" },
+    { emoji: "🎆", label: "fireworks", name: "Fireworks" },
+    { emoji: "👍", label: "thumbs_up", name: "Thumbs Up" },
+    { emoji: "👎", label: "thumbs_down", name: "Thumbs Down" },
+    { emoji: "✌️", label: "laser", name: "Laser" },
 ];
 
 const COOLDOWN_MS = 3000;
