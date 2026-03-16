@@ -198,7 +198,7 @@ export function ReactionCanvas({ reactions }: ReactionCanvasProps) {
                 case "confetti":
                     effectsRef.current.push(spawnConfetti(ox, oy, w, h));
                     break;
-                case "firecracker":
+                case "fireworks":
                     effectsRef.current.push(spawnFirecracker(ox, oy, w, h));
                     break;
             }
