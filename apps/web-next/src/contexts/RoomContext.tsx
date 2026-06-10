@@ -718,12 +718,20 @@ export function RoomProvider({ children }: RoomProviderProps) {
         }
     }, [isScreenSharing, localStream, screenStream, sendWs]);
 
-    const toggleMute = useCallback(() => {
+    const toggleMute = useCallback(async () => {
         if (!localStream) return;
+        
         const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            setLocalUser((prev: Participant | null) => prev ? { ...prev, hasAudio: audioTrack.enabled } : null);
+        const isCurrentlyAudioOn = localUser?.hasAudio ?? true;
+
+        if (isCurrentlyAudioOn) {
+            // Turning audio OFF
+            if (audioTrack) {
+                audioTrack.enabled = false;
+                audioTrack.stop();
+            }
+            
+            setLocalUser((prev: Participant | null) => prev ? { ...prev, hasAudio: false } : null);
 
             if (currentRoomId.current) {
                 sendWs({
@@ -731,19 +739,65 @@ export function RoomProvider({ children }: RoomProviderProps) {
                     type: "user/update",
                     payload: {
                         roomId: currentRoomId.current,
-                        state: { hasAudio: audioTrack.enabled }
+                        state: { hasAudio: false }
                     }
                 });
             }
-        }
-    }, [localStream]);
+        } else {
+            // Turning audio ON
+            try {
+                // Try to use the same microphone device as before if possible
+                const deviceId = audioTrack?.getSettings()?.deviceId;
+                const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+                
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const newAudioTrack = newStream.getAudioTracks()[0];
 
-    const toggleVideo = useCallback(() => {
+                if (audioTrack) {
+                    localStream.removeTrack(audioTrack);
+                }
+                localStream.addTrack(newAudioTrack);
+
+                // Update all peer connections to send the new track
+                pcsRef.current.forEach((pc: RTCPeerConnection) => {
+                    const sender = pc.getSenders().find((s: RTCRtpSender) => s.track?.kind === 'audio' || (audioTrack && s.track?.id === audioTrack.id));
+                    if (sender) {
+                        sender.replaceTrack(newAudioTrack).catch(err => console.error("Error replacing audio track:", err));
+                    }
+                });
+
+                setLocalUser((prev: Participant | null) => prev ? { ...prev, hasAudio: true } : null);
+
+                if (currentRoomId.current) {
+                    sendWs({
+                        v: WS_PROTOCOL_VERSION,
+                        type: "user/update",
+                        payload: {
+                            roomId: currentRoomId.current,
+                            state: { hasAudio: true }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error turning audio back on:", error);
+            }
+        }
+    }, [localStream, localUser?.hasAudio]);
+
+    const toggleVideo = useCallback(async () => {
         if (!localStream) return;
+        
         const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            setLocalUser((prev: Participant | null) => prev ? { ...prev, hasVideo: videoTrack.enabled } : null);
+        const isCurrentlyVideoOn = localUser?.hasVideo ?? true;
+
+        if (isCurrentlyVideoOn) {
+            // Turning video OFF
+            if (videoTrack) {
+                videoTrack.enabled = false;
+                videoTrack.stop();
+            }
+            
+            setLocalUser((prev: Participant | null) => prev ? { ...prev, hasVideo: false } : null);
 
             if (currentRoomId.current) {
                 sendWs({
@@ -751,12 +805,50 @@ export function RoomProvider({ children }: RoomProviderProps) {
                     type: "user/update",
                     payload: {
                         roomId: currentRoomId.current,
-                        state: { hasVideo: videoTrack.enabled }
+                        state: { hasVideo: false }
                     }
                 });
             }
+        } else {
+            // Turning video ON
+            try {
+                // Try to use the same camera device as before if possible
+                const deviceId = videoTrack?.getSettings()?.deviceId;
+                const constraints = deviceId ? { video: { deviceId: { exact: deviceId } } } : { video: true };
+                
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const newVideoTrack = newStream.getVideoTracks()[0];
+
+                if (videoTrack) {
+                    localStream.removeTrack(videoTrack);
+                }
+                localStream.addTrack(newVideoTrack);
+
+                // Update all peer connections to send the new track
+                pcsRef.current.forEach((pc: RTCPeerConnection) => {
+                    const sender = pc.getSenders().find((s: RTCRtpSender) => s.track?.kind === 'video' || (videoTrack && s.track?.id === videoTrack.id));
+                    if (sender) {
+                        sender.replaceTrack(newVideoTrack).catch(err => console.error("Error replacing video track:", err));
+                    }
+                });
+
+                setLocalUser((prev: Participant | null) => prev ? { ...prev, hasVideo: true } : null);
+
+                if (currentRoomId.current) {
+                    sendWs({
+                        v: WS_PROTOCOL_VERSION,
+                        type: "user/update",
+                        payload: {
+                            roomId: currentRoomId.current,
+                            state: { hasVideo: true }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error turning video back on:", error);
+            }
         }
-    }, [localStream]);
+    }, [localStream, localUser?.hasVideo]);
 
     const switchCamera = useCallback(async () => {
         if (!localStream) return;
