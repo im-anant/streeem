@@ -24,6 +24,16 @@ export type PlaybackState = {
      */
     contentId?: string;
 };
+export type WatchPartySession = {
+    contentType: 'movie' | 'tv';
+    tmdbId: number;
+    season?: number;
+    episode?: number;
+    embedUrl: string;
+    title: string;
+    posterPath?: string;
+    hostId: UserId;
+};
 export type WsEnvelope<TType extends string, TPayload> = {
     v: typeof WS_PROTOCOL_VERSION;
     type: TType;
@@ -77,6 +87,17 @@ export type C2S = WsEnvelope<"room/join", {
     roomId: RoomId;
     reaction: string;
     source: "gesture" | "ui";
+}> | WsEnvelope<"watchparty/start", {
+    roomId: RoomId;
+    contentType: 'movie' | 'tv';
+    tmdbId: number;
+    season?: number;
+    episode?: number;
+    embedUrl: string;
+    title: string;
+    posterPath?: string;
+}> | WsEnvelope<"watchparty/stop", {
+    roomId: RoomId;
 }>;
 /**
  * Server -> Client events
@@ -133,6 +154,12 @@ export type S2C = WsEnvelope<"server/hello", {
         isSpeaking: boolean;
         isScreenSharing: boolean;
     }>;
+}> | WsEnvelope<"watchparty/started", {
+    roomId: RoomId;
+    session: WatchPartySession;
+}> | WsEnvelope<"watchparty/stopped", {
+    roomId: RoomId;
+    stoppedByUserId: UserId;
 }> | WsEnvelope<"error", {
     requestId?: string;
     code: "bad_request" | "unauthorized" | "not_in_room" | "room_not_found" | "peer_not_found" | "internal";

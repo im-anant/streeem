@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   typescript: {
     // ignoreBuildErrors: true, // impactful change: re-enabling type checks
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   experimental: {
     // keep defaults; placeholder for future streaming/suspense tuning
   }

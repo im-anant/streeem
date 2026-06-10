@@ -146,6 +146,14 @@ wss.on("connection", (ws) => {
                     type: "room/joined",
                     payload: { roomId, you: client, peers }
                 });
+                // If there's an active watch party, send it to the joining user
+                if (room.watchPartySession) {
+                    send(ws, {
+                        v: WS_PROTOCOL_VERSION,
+                        type: "watchparty/started",
+                        payload: { roomId, session: room.watchPartySession }
+                    });
+                }
                 broadcast(roomId, {
                     v: WS_PROTOCOL_VERSION,
                     type: "room/peer_joined",
@@ -303,6 +311,71 @@ wss.on("connection", (ws) => {
                         source,
                         tsMs: Date.now()
                     }
+                });
+                break;
+            }
+            case "watchparty/start": {
+                if (!conn.user || !conn.roomId) {
+                    send(ws, errorMsg(requestId, "not_in_room", "Join a room first"));
+                    return;
+                }
+                const { roomId, contentType, tmdbId, season, episode, embedUrl, title, posterPath } = msg.payload;
+                if (roomId !== conn.roomId) {
+                    send(ws, errorMsg(requestId, "not_in_room", "Not in that room"));
+                    return;
+                }
+                const room = rooms.get(roomId);
+                if (!room) {
+                    send(ws, errorMsg(requestId, "room_not_found", "Room not found"));
+                    return;
+                }
+                // Only allow if no active session or sender is the current host
+                if (room.watchPartySession && room.watchPartySession.hostId !== conn.user.userId) {
+                    send(ws, errorMsg(requestId, "unauthorized", "Only the host can change the watch party"));
+                    return;
+                }
+                const session = {
+                    contentType,
+                    tmdbId,
+                    season,
+                    episode,
+                    embedUrl,
+                    title,
+                    posterPath,
+                    hostId: conn.user.userId,
+                };
+                room.watchPartySession = session;
+                broadcast(roomId, {
+                    v: WS_PROTOCOL_VERSION,
+                    type: "watchparty/started",
+                    payload: { roomId, session }
+                });
+                break;
+            }
+            case "watchparty/stop": {
+                if (!conn.user || !conn.roomId) {
+                    send(ws, errorMsg(requestId, "not_in_room", "Join a room first"));
+                    return;
+                }
+                const { roomId } = msg.payload;
+                if (roomId !== conn.roomId) {
+                    send(ws, errorMsg(requestId, "not_in_room", "Not in that room"));
+                    return;
+                }
+                const room = rooms.get(roomId);
+                if (!room) {
+                    send(ws, errorMsg(requestId, "room_not_found", "Room not found"));
+                    return;
+                }
+                if (room.watchPartySession && room.watchPartySession.hostId !== conn.user.userId) {
+                    send(ws, errorMsg(requestId, "unauthorized", "Only the host can stop the watch party"));
+                    return;
+                }
+                room.watchPartySession = undefined;
+                broadcast(roomId, {
+                    v: WS_PROTOCOL_VERSION,
+                    type: "watchparty/stopped",
+                    payload: { roomId, stoppedByUserId: conn.user.userId }
                 });
                 break;
             }
