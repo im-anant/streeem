@@ -21,6 +21,9 @@ import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { GameOverlay } from "@/features/app/GameOverlay";
+import { WatchPartyPicker } from "@/components/WatchParty/WatchPartyPicker";
+import { WatchPartyPlayer } from "@/components/WatchParty/WatchPartyPlayer";
+import { useWatchPartySync } from "@/hooks/useWatchPartySync";
 
 function cn(...inputs: (string | undefined | null | false)[]) {
     return twMerge(clsx(inputs));
@@ -90,7 +93,14 @@ export default function RoomPage() {
         localStream,
         messages,
         mediaError,
-        roomError
+        roomError,
+        // Watch Party
+        watchPartySession,
+        isWatchPartyHost,
+        startWatchParty,
+        stopWatchParty,
+        setPlayback,
+        remotePlaybackState,
     } = useRoom();
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -98,6 +108,8 @@ export default function RoomPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isReactionPanelOpen, setIsReactionPanelOpen] = useState(false);
     const [streamModalOpen, setStreamModalOpen] = useState(false);
+    const [watchPartyPickerOpen, setWatchPartyPickerOpen] = useState(false);
+    const [showStopConfirm, setShowStopConfirm] = useState(false);
     const [appOpen, setAppOpen] = useState(false);
     const [dockVisible, setDockVisible] = useState(true);
     const [linkCopied, setLinkCopied] = useState(false);
@@ -200,10 +212,30 @@ export default function RoomPage() {
 
     // 2. Determine Layout Mode
     // Mode: "content" (Screen Share or Watch Party) vs "normal" (Video Call)
-    const isContentMode = !!activeStreamUrl || !!activeScreenSharer;
+    const isContentMode = !!activeStreamUrl || !!activeScreenSharer || !!watchPartySession;
 
     // --- Computed Groups ---
     const remoteParticipants = useMemo(() => participants.filter(p => !p.isLocal), [participants]);
+
+    // Watch Party sync hook
+    const { syncState, handlePlayerEvent } = useWatchPartySync({
+        isHost: isWatchPartyHost,
+        isActive: !!watchPartySession,
+        sendPlaybackState: (state) => {
+            setPlayback(state.playing ? "playing" : "paused", state.positionSec);
+        },
+        remotePlaybackState,
+    });
+
+    // Watch Party title for status bar
+    const watchPartyTitle = useMemo(() => {
+        if (!watchPartySession) return '';
+        const { title, contentType, season, episode } = watchPartySession;
+        if (contentType === 'tv' && season && episode) {
+            return `${title} (S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')})`;
+        }
+        return title;
+    }, [watchPartySession]);
 
     // Handle Join Screen
     if (!localUser) {
@@ -329,8 +361,8 @@ export default function RoomPage() {
                     <div className="flex-1 relative overflow-hidden flex flex-col min-w-0">
                         <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-zinc-950 p-4">
 
-                            {activeStreamUrl && (
-                                // Watch Party Player
+                            {activeStreamUrl && !watchPartySession && (
+                                // Legacy Watch Party Player (URL-based)
                                 <div className="w-full h-full max-w-6xl flex items-center justify-center">
                                     <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 relative bg-black">
                                         <VideoPlayer />
@@ -339,6 +371,17 @@ export default function RoomPage() {
                                         </div>
                                     </div>
                                 </div>
+                            )}
+
+                            {watchPartySession && (
+                                // Vidking Watch Party Player
+                                <WatchPartyPlayer
+                                    embedUrl={watchPartySession.embedUrl}
+                                    title={watchPartyTitle}
+                                    isHost={isWatchPartyHost}
+                                    syncState={syncState}
+                                    onPlayerEvent={handlePlayerEvent}
+                                />
                             )}
 
                             {!activeStreamUrl && activeScreenSharer && (
@@ -456,7 +499,7 @@ export default function RoomPage() {
 
             {/* Streeem Dock — macOS-style auto-hiding controls */}
             <StreemDock
-                onStartStream={() => setStreamModalOpen(true)}
+                onStartStream={() => setWatchPartyPickerOpen(true)}
                 onToggleChat={() => setIsChatOpen(prev => !prev)}
                 onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
                 onToggleReactions={() => setIsReactionPanelOpen((prev) => !prev)}
@@ -466,6 +509,9 @@ export default function RoomPage() {
                 reactionsOpen={isReactionPanelOpen}
                 appOpen={appOpen}
                 onDockVisibilityChange={setDockVisible}
+                watchPartyActive={!!watchPartySession}
+                isWatchPartyHost={isWatchPartyHost}
+                onStopWatchParty={() => setShowStopConfirm(true)}
             />
 
             {/* Reaction Panel (floating above controls) */}
@@ -523,6 +569,45 @@ export default function RoomPage() {
                 onClose={() => setStreamModalOpen(false)}
                 onSubmit={(url) => setStreamUrl(url)}
             />
+
+            {/* Watch Party Content Picker */}
+            <WatchPartyPicker
+                open={watchPartyPickerOpen}
+                onClose={() => setWatchPartyPickerOpen(false)}
+                onStart={(data) => {
+                    startWatchParty(data);
+                    setWatchPartyPickerOpen(false);
+                }}
+            />
+
+            {/* Stop Watch Party Confirmation */}
+            {showStopConfirm && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-white mb-2">Stop Watch Party?</h3>
+                        <p className="text-sm text-zinc-400 mb-6">
+                            This will end the watch session for everyone in the room.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowStopConfirm(false)}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-300 hover:bg-white/5 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    stopWatchParty();
+                                    setShowStopConfirm(false);
+                                }}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-500 transition-all shadow-lg"
+                            >
+                                Stop Party
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* App Overlay — features/index.html */}
             {FEATURE_FLAGS.APP_ENABLED && (

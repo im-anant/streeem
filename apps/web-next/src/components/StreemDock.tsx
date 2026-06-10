@@ -5,7 +5,7 @@ import {
 } from "react";
 import {
     Mic, MicOff, Video, VideoOff, MonitorUp,
-    MessageSquare, PhoneOff, Play, Camera, Users, Smile, Gamepad2,
+    MessageSquare, PhoneOff, Play, Camera, Users, Smile, Gamepad2, Tv,
 } from "lucide-react";
 import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { useRoom } from "@/contexts/RoomContext";
@@ -27,6 +27,10 @@ interface StreemDockProps {
     appOpen?: boolean;
     unreadCount?: number;
     onDockVisibilityChange?: (visible: boolean) => void;
+    // Watch Party
+    watchPartyActive?: boolean;
+    isWatchPartyHost?: boolean;
+    onStopWatchParty?: () => void;
 }
 
 // ---- Magnification math (PRD v1.1 — GPU-only transform:scale) ----
@@ -66,6 +70,9 @@ export function StreemDock({
     appOpen = false,
     unreadCount = 0,
     onDockVisibilityChange,
+    watchPartyActive = false,
+    isWatchPartyHost = false,
+    onStopWatchParty,
 }: StreemDockProps) {
     const {
         localUser, toggleMute, toggleVideo, toggleScreenShare,
@@ -335,7 +342,7 @@ export function StreemDock({
         { id: "camera", label: isVideoOff ? "Camera On" : "Camera Off" },
         { id: "snapshot", label: "Switch Camera" },
         { id: "screenshare", label: "Share Screen" },
-        { id: "watchparty", label: "Watch Party" },
+        { id: "watchparty", label: watchPartyActive ? "Live" : "Watch Party" },
         { id: "participants", label: "Participants" },
         { id: "chat", label: "Chat" },
         { id: "reactions", label: "Reactions" },
@@ -350,7 +357,16 @@ export function StreemDock({
             case "camera": toggleVideo(); break;
             case "snapshot": switchCamera(); break;
             case "screenshare": toggleScreenShare(); break;
-            case "watchparty": onStartStream(); break;
+            case "watchparty":
+                if (watchPartyActive) {
+                    if (isWatchPartyHost) {
+                        onStopWatchParty?.();
+                    }
+                    // Members do nothing on click (toast is handled in room page)
+                } else {
+                    onStartStream();
+                }
+                break;
             case "participants": onToggleSidebar(); break;
             case "chat": onToggleChat(); break;
             case "reactions": onToggleReactions(); break;
@@ -374,7 +390,7 @@ export function StreemDock({
             case "camera": return isVideoOff ? <VideoOff className={cls} /> : <Video className={cls} />;
             case "snapshot": return <Camera className={cls} />;
             case "screenshare": return <MonitorUp className={cls} />;
-            case "watchparty": return <Play className={cls} />;
+            case "watchparty": return watchPartyActive ? <Tv className={cls} /> : <Play className={cls} />;
             case "participants": return <Users className={cls} />;
             case "chat": return <MessageSquare className={cls} />;
             case "reactions": return <Smile className={cls} />;
@@ -394,6 +410,7 @@ export function StreemDock({
             case "chat": return chatOpen ? "background: rgba(99,102,241,0.2)" : "";
             case "reactions": return reactionsOpen ? "background: rgba(234,179,8,0.2)" : "";
             case "app": return appOpen ? "background: rgba(99,102,241,0.2)" : "";
+            case "watchparty": return watchPartyActive ? "background: rgba(99,102,241,0.2)" : "";
             case "endcall": return "background: rgba(239,68,68,0.9)";
             default: return "";
         }
@@ -408,6 +425,7 @@ export function StreemDock({
             case "chat": return chatOpen ? "color: #A5B4FC" : "";
             case "reactions": return reactionsOpen ? "color: #FDE047" : "";
             case "app": return appOpen ? "color: #818CF8" : "";
+            case "watchparty": return watchPartyActive ? "color: #818CF8" : "";
             case "endcall": return "color: white";
             default: return "";
         }

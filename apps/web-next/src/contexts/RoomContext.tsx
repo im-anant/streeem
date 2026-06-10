@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { Participant } from "@/types";
-import { WS_PROTOCOL_VERSION, ClientInfo, C2S, S2C, PlaybackState } from "@streamsync/shared";
+import { WS_PROTOCOL_VERSION, ClientInfo, C2S, S2C, PlaybackState, WatchPartySession } from "@streamsync/shared";
 
 interface ChatMessage {
     id: string;
@@ -45,6 +45,20 @@ interface RoomContextType {
     incomingReactions: IncomingReaction[];
     mediaError: string | null;
     roomError: string | null;
+    // Watch Party
+    watchPartySession: WatchPartySession | null;
+    isWatchPartyHost: boolean;
+    startWatchParty: (data: {
+        contentType: 'movie' | 'tv';
+        tmdbId: number;
+        season?: number;
+        episode?: number;
+        embedUrl: string;
+        title: string;
+        posterPath?: string;
+    }) => void;
+    stopWatchParty: () => void;
+    remotePlaybackState: { playing: boolean; positionSec: number; hostTsMs: number } | null;
 }
 
 const RoomContext = createContext<RoomContextType | null>(null);
@@ -111,6 +125,10 @@ export function RoomProvider({ children }: RoomProviderProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [mediaError, setMediaError] = useState<string | null>(null);
     const [roomError, setRoomError] = useState<string | null>(null);
+
+    // Watch Party state
+    const [watchPartySession, setWatchPartySession] = useState<WatchPartySession | null>(null);
+    const [remotePlaybackState, setRemotePlaybackState] = useState<{ playing: boolean; positionSec: number; hostTsMs: number } | null>(null);
 
     // WebSocket and WebRTC Refs
     const wsRef = useRef<WebSocket | null>(null);
@@ -184,7 +202,23 @@ export function RoomProvider({ children }: RoomProviderProps) {
                 case "watch/playback_state":
                     setPlaybackState(msg.payload.state.playing ? "playing" : "paused");
                     setCurrentTime(msg.payload.state.positionSec);
+                    // Also store raw remote state for Watch Party drift correction
+                    setRemotePlaybackState({
+                        playing: msg.payload.state.playing,
+                        positionSec: msg.payload.state.positionSec,
+                        hostTsMs: msg.payload.state.hostTsMs,
+                    });
                     break;
+                case "watchparty/started" as any: {
+                    const wp = (msg as any).payload;
+                    setWatchPartySession(wp.session);
+                    break;
+                }
+                case "watchparty/stopped" as any: {
+                    setWatchPartySession(null);
+                    setRemotePlaybackState(null);
+                    break;
+                }
                 case "reaction/received": {
                     const r = msg.payload as any;
                     const incoming: IncomingReaction = {
@@ -818,6 +852,40 @@ export function RoomProvider({ children }: RoomProviderProps) {
         });
     }, [sendWs]);
 
+    // Watch Party actions
+    const startWatchParty = useCallback((data: {
+        contentType: 'movie' | 'tv';
+        tmdbId: number;
+        season?: number;
+        episode?: number;
+        embedUrl: string;
+        title: string;
+        posterPath?: string;
+    }) => {
+        if (!currentRoomId.current) return;
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "watchparty/start" as any,
+            payload: {
+                roomId: currentRoomId.current,
+                ...data,
+            },
+        } as any);
+    }, [sendWs]);
+
+    const stopWatchParty = useCallback(() => {
+        if (!currentRoomId.current) return;
+        sendWs({
+            v: WS_PROTOCOL_VERSION,
+            type: "watchparty/stop" as any,
+            payload: {
+                roomId: currentRoomId.current,
+            },
+        } as any);
+    }, [sendWs]);
+
+    const isWatchPartyHost = !!(watchPartySession && localUser && watchPartySession.hostId === localUser.id);
+
     const value: RoomContextType = {
         participants,
         localUser,
@@ -841,6 +909,12 @@ export function RoomProvider({ children }: RoomProviderProps) {
         incomingReactions,
         mediaError,
         roomError,
+        // Watch Party
+        watchPartySession,
+        isWatchPartyHost,
+        startWatchParty,
+        stopWatchParty,
+        remotePlaybackState,
     };
 
     return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
