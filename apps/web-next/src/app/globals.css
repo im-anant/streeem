@@ -435,11 +435,18 @@ body {
 
 /* --- Dock re-centering when sidebar is active -- */
 .streeem-sidebar-active .streeem-dock {
-  left: calc((100vw - 240px) / 2);
+  left: calc((100vw - 340px) / 2);
 }
 
 .streeem-sidebar-active .dock-proximity-zone {
-  width: calc(100vw - 240px);
+  width: calc(100vw - 340px);
+}
+
+/* Watch Party specific overrides - move proximity zone to the right sidebar ONLY */
+.streeem-sidebar-active.watch-party-active .dock-proximity-zone {
+  width: 340px;
+  left: auto;
+  right: 0;
 }
 
 /* When sidebar is collapsed, dock re-centers to full viewport */

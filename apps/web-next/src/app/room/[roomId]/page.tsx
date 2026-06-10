@@ -285,7 +285,8 @@ export default function RoomPage() {
         <main className={cn(
             "relative h-dvh w-full overflow-hidden bg-black text-white",
             isContentMode && "streeem-sidebar-active",
-            isContentMode && participantSidebarCollapsed && "sidebar-collapsed"
+            isContentMode && participantSidebarCollapsed && "sidebar-collapsed",
+            !!watchPartySession && "watch-party-active"
         )}>
             {mediaError && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg backdrop-blur flex items-center gap-2">
